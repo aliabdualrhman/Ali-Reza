@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>زنبور — توصيل بالدراجات النارية</title>
+<meta name="description" content="زنبور: منصّة تربط الركّاب بسائقي الدراجات النارية في العراق.">
+<link rel="icon" href="app_icon.png">
+<style>
+  :root {
+    --brand: #F5B301;
+    --ink: #1E180E;
+    --muted: #6b6152;
+    --bg: #FFFBF3;
+    --card: #fff;
+    --line: #eee2c8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, "Dubai", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.9;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 0 20px; }
+
+  header { background: var(--brand); padding: 48px 0 40px; }
+  header .wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  header img { width: 92px; height: 92px; border-radius: 22px; }
+  header h1 { margin: 0; font-size: 2.1rem; }
+  header p { margin: 6px 0 0; font-size: 1.05rem; }
+
+  nav { background: var(--card); border-bottom: 1px solid var(--line);
+        position: sticky; top: 0; z-index: 10; }
+  nav .wrap { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 20px; }
+  nav a { color: var(--ink); text-decoration: none; padding: 8px 14px;
+          border-radius: 999px; font-size: .95rem; }
+  nav a:hover { background: var(--bg); }
+
+  main { padding: 40px 0 80px; }
+  section { margin-bottom: 56px; scroll-margin-top: 70px; }
+  h2 { font-size: 1.5rem; border-bottom: 3px solid var(--brand);
+       display: inline-block; padding-bottom: 6px; margin-bottom: 18px; }
+  h3 { font-size: 1.1rem; margin: 26px 0 8px; }
+  p, li { color: #2b2419; }
+  .muted { color: var(--muted); font-size: .92rem; }
+
+  .card { background: var(--card); border: 1px solid var(--line);
+          border-radius: 16px; padding: 22px 26px; margin: 18px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; }
+  th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  th { background: #fdf4dd; font-weight: 700; }
+
+  .pill { display: inline-block; background: #fdf4dd; border: 1px solid var(--line);
+          border-radius: 999px; padding: 4px 12px; font-size: .85rem; margin: 2px; }
+
+  details { background: var(--card); border: 1px solid var(--line);
+            border-radius: 14px; padding: 4px 20px; margin: 14px 0; }
+  summary { cursor: pointer; font-weight: 700; padding: 14px 0; font-size: 1.05rem; }
+  details[open] summary { border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+  pre { white-space: pre-wrap; font-family: inherit; line-height: 1.95;
+        margin: 0 0 18px; }
+
+  footer { background: var(--ink); color: #d9cfbb; padding: 30px 0; font-size: .9rem; }
+  footer a { color: var(--brand); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <img src="app_icon.png" alt="زنبور">
+    <div>
+      <h1>زنبور</h1>
+      <p>توصيل بالدراجات النارية والتكتك — الناصرية</p>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="wrap">
+    <a href="#about">عن الخدمة</a>
+    <a href="#privacy">سياسة الخصوصية</a>
+    <a href="#terms">شروط الاستخدام</a>
+    <a href="#delete">حذف الحساب</a>
+    <a href="#support">الدعم والتواصل</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<section id="about">
+  <h2>عن الخدمة</h2>
+  <p>
+    <strong>زنبور</strong> منصّة تقنية تربط الركّاب بسائقي الدراجات النارية
+    والتكتك المستقلّين في العراق. يطلب الراكب رحلة من التطبيق، فيصل الطلب
+    إلى أقرب السائقين، ويتفقان مباشرةً على تنفيذها.
+  </p>
+  <div class="card">
+    <p style="margin:0">
+      <strong>نحن وسيط تقني لا شركة نقل.</strong> لا نملك المركبات ولا
+      نشغّلها ولا نوظّف السائقين. والسائق متعاقد مستقل يعمل لحسابه ويملك
+      مركبته ويتحمّل مسؤوليتها.
+    </p>
+  </div>
+  <p class="muted">
+    خدمة نقل الأشخاص عبر التطبيق <strong>تجريبية</strong> في طور الاختبار
+    والتقييم، وتعمل حالياً في الناصرية وحدها.
+  </p>
+
+  <h3>تطبيقان</h3>
+  <p>
+    <span class="pill">زنبور — للراكب</span>
+    <span class="pill">كابتن زنبور — للسائق</span>
+  </p>
+  <p class="muted">الدفع نقداً للسائق عند الوصول. لا ندفع ولا نحصّل الأجرة.</p>
+</section>
+
+<section id="privacy">
+  <h2>سياسة الخصوصية</h2>
+  <p class="muted">آخر تحديث: ٢٠٢٦/٠٨/٣٠</p>
+
+  <p>
+    تشرح هذه السياسة ما نجمعه من بيانات، ولماذا، ومع من نشاركه. وهي تنطبق
+    على تطبيقَي <strong>زنبور</strong> و<strong>كابتن زنبور</strong>.
+  </p>
+
+  <h3>١ — ما نجمعه</h3>
+  <table>
+    <tr><th>البيانات</th><th>من مَن</th><th>لماذا</th></tr>
+    <tr><td>الاسم الكامل، البريد، رقم الهاتف، تاريخ الميلاد، العنوان</td>
+        <td>الجميع</td><td>إنشاء الحساب والتواصل والتحقق من السن</td></tr>
+    <tr><td>صورة حية (سيلفي)</td><td>الجميع</td>
+        <td>التحقق من الهوية، ويراها الراكب لسائقه أثناء الرحلة النشطة</td></tr>
+    <tr><td>صور البطاقة الوطنية وصور المركبة</td><td>السائقون</td>
+        <td>اعتماد السائق. <strong>لا نخزّن رقم البطاقة</strong> — صوراً فقط</td></tr>
+    <tr><td>الموقع الجغرافي</td><td>الجميع</td>
+        <td>الراكب: عند الطلب. السائق: باستمرار أثناء اتصاله بالخدمة،
+            <strong>بما في ذلك والتطبيق في الخلفية</strong></td></tr>
+    <tr><td>سجل الرحلات والتقييمات</td><td>الجميع</td>
+        <td>عرض السجل، وتسوية النزاعات، وحساب التقييم</td></tr>
+    <tr><td>حركات المحفظة والعمولات</td><td>السائقون</td>
+        <td>كشف حساب السائق</td></tr>
+    <tr><td>رمز جهاز للإشعارات</td><td>الجميع</td>
+        <td>إرسال إشعار عند وصول طلب أو تحديث رحلة</td></tr>
+  </table>
+
+  <h3>٢ — موقع السائق في الخلفية</h3>
+  <p>
+    يجمع تطبيق السائق موقعه <strong>باستمرار أثناء اتصاله بالخدمة</strong>،
+    حتى والتطبيق مغلق الشاشة أو في الخلفية. هذا ضروري لعمل الخدمة: بدونه
+    لا يستطيع النظام أن يعرف أي سائق أقرب إلى الراكب، ولا يستطيع الراكب
+    تتبّع سائقه القادم إليه.
+  </p>
+  <p>
+    ويظهر للسائق <strong>إشعار دائم</strong> ما دام التتبّع يعمل، فلا يجري
+    شيء خفيةً. ويتوقف الجمع فور أن يجعل السائق نفسه «غير متصل».
+  </p>
+
+  <h3>٣ — ما نشاركه، ومع من</h3>
+  <p>
+    <strong>لا نبيع بياناتك ولا نؤجّرها لأحد، ولا نستعملها في إعلانات.</strong>
+  </p>
+  <ul>
+    <li><strong>طرفا الرحلة:</strong> يرى الراكب اسم سائقه وصورته وتقييمه
+      وبيانات مركبته ورقم هاتفه — <strong>أثناء الرحلة النشطة وحدها</strong>،
+      ويُخفى الرقم بعد انتهائها. ويرى السائق اسم راكبه ورقمه بالشرط نفسه،
+      <strong>ولا يرى صورته</strong>.</li>
+    <li><strong>مزوّدو الخدمة التقنية:</strong> استضافة قاعدة البيانات
+      (Supabase)، وإرسال الإشعارات (Google Firebase)، وإرسال رسائل البريد
+      (Brevo)، وخدمات الخرائط والمسارات (OpenStreetMap).</li>
+    <li><strong>الجهات الرسمية:</strong> عند طلب قانوني مختصّ.</li>
+  </ul>
+
+  <h3>٤ — أين تُحفظ وكم تبقى</h3>
+  <p>
+    تُحفظ على خوادم في الاتحاد الأوروبي (فرانكفورت). ونحتفظ بها ما دام
+    حسابك قائماً، ثم للمدة اللازمة نظاماً أو لتسوية نزاع قائم. وتبقى سجلات
+    الرحلات والحركات المالية للتدقيق حتى بعد إغلاق الحساب.
+  </p>
+
+  <h3>٥ — حقوقك</h3>
+  <ul>
+    <li>الاطلاع على بياناتك وطلب نسخة منها.</li>
+    <li>تصحيح ما كان خاطئاً منها.</li>
+    <li><strong>طلب حذف حسابك وبياناتك.</strong> راسلنا وننفّذه خلال ثلاثين
+      يوماً، عدا ما يلزمنا الاحتفاظ به قانونياً أو محاسبياً.</li>
+    <li>سحب إذن الموقع أو الإشعارات من إعدادات هاتفك في أي وقت — ويتوقف
+      حينها جزء من الخدمة عن العمل.</li>
+  </ul>
+
+  <h3>٦ — الأطفال</h3>
+  <p>الخدمة ليست موجّهة لمن هم دون السادسة عشرة، ولا نجمع بياناتهم قصداً.</p>
+
+  <h3>٧ — الأمان</h3>
+  <p>
+    الاتصالات مشفّرة، والوصول إلى البيانات محكوم بسياسات على مستوى الصفّ
+    في قاعدة البيانات، والوثائق في مخزن خاص لا يُقرأ إلا بإذن مؤقّت.
+    <strong>ولا يوجد نظام آمن تماماً</strong>، ولا نستطيع ضمان ذلك.
+  </p>
+
+  <h3>٨ — تعديل السياسة</h3>
+  <p>قد نعدّلها، ونحدّث تاريخ آخر تعديل أعلاه. ويُعدّ استمرارك موافقةً.</p>
+</section>
+
+<section id="terms">
+  <h2>شروط الاستخدام</h2>
+  <p class="muted">
+    النصّان الكاملان أدناه، وهما نفسهما المعروضان داخل التطبيقين عند
+    التسجيل.
+  </p>
+
+  <details id="terms-rider">
+    <summary>شروط استخدام تطبيق زنبور — الركّاب</summary>
+    <pre id="rider-terms">…</pre>
+  </details>
+
+  <details id="terms-driver">
+    <summary>اتفاقية استخدام تطبيق زنبور — السائقون</summary>
+    <pre id="driver-terms">…</pre>
+  </details>
+</section>
+
+<section id="delete">
+  <h2>حذف الحساب والبيانات</h2>
+
+  <p>
+    تستطيع حذف حسابك وبياناتك في أي وقت، بنفسك ومن داخل التطبيق، بلا وسيط
+    وبلا انتظار موافقة.
+  </p>
+
+  <h3>من داخل التطبيق</h3>
+  <ol>
+    <li>افتح تطبيق <strong>زنبور</strong> أو <strong>كابتن زنبور</strong>.</li>
+    <li>اضغط أيقونة <strong>حسابي</strong> في أعلى الشاشة الرئيسية
+      (أو من قائمة التطبيق عند السائق).</li>
+    <li>مرّر إلى أسفل الصفحة واضغط <strong>«حذف حسابي نهائياً»</strong>.</li>
+    <li>اكتب كلمة «حذف» للتأكيد. يُنفَّذ الحذف فوراً وتخرج من التطبيق.</li>
+  </ol>
+
+  <h3>ما يُمحى نهائياً</h3>
+  <ul>
+    <li>اسمك الكامل، وبريدك، ورقم هاتفك، وعنوانك، وتاريخ ميلادك.</li>
+    <li>صورتك الحية، وصور بطاقتك الوطنية، وصور مركبتك — تُحذف من خوادمنا.</li>
+    <li>رمز جهازك للإشعارات، وأي طلب تعديل بيانات معلّق.</li>
+  </ul>
+
+  <h3>ما يبقى، ولماذا</h3>
+  <p>
+    يبقى سجلّ الرحلات ومبالغها وحركات المحفظة، <strong>بلا اسمك ولا أي
+    بيان يدلّ عليك</strong>. سببان لا مفرّ منهما: أن الرحلة الواحدة لها
+    طرفان ولكلٍّ حقٌّ في سجلّها، وأن الدفاتر المالية والعمولات تلزمنا
+    للمحاسبة. لا يمكن استعادة هذه السجلّات للتعرّف عليك بعد الحذف.
+  </p>
+
+  <h3>متى يتعذّر الحذف مؤقتاً</h3>
+  <ul>
+    <li>لديك رحلة جارية الآن — أنهِها أو ألغِها أولاً.</li>
+    <li>(للسائقين) عليك رصيد مستحق لم يُسدَّد، أو طلب سحب معلّق.</li>
+  </ul>
+
+  <h3>إن لم تستطع فتح التطبيق</h3>
+  <p>
+    راسلنا من البريد المسجّل في حسابك على
+    <a href="mailto:ali.alkawary@gmail.com">ali.alkawary@gmail.com</a>
+    وعنوان الرسالة «طلب حذف حساب». ننفّذ الطلب خلال ثلاثين يوماً كحدّ أقصى
+    بعد التحقق من ملكيتك للحساب.
+  </p>
+</section>
+
+<section id="support">
+  <h2>الدعم والتواصل</h2>
+  <div class="card">
+    <p><strong>البريد:</strong> <a href="mailto:ali.alkawary@gmail.com">ali.alkawary@gmail.com</a></p>
+    <p><strong>واتساب الدعم:</strong> ‎+964 780 171 1922</p>
+    <p class="muted" style="margin-bottom:0">
+      لحذف حسابك: <a href="#delete">اقرأ خطوات الحذف</a> — تنفّذها بنفسك
+      من داخل التطبيق.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    زنبور — خدمة تجريبية لنقل الأشخاص بالدراجات النارية في العراق.
+    <br>
+    نحن وسيط تقني ولسنا شركة نقل؛ لا نملك المركبات ولا نشغّلها.
+  </div>
+</footer>
+
+<script src="terms.js"></script>
+<script>
+  // النصوص من ملف واحد مشترك، فلا تختلف نسخة الموقع عن نسخة التطبيق
+  document.getElementById('rider-terms').textContent = RIDER_TERMS.trim();
+  document.getElementById('driver-terms').textContent = DRIVER_TERMS.trim();
+</script>
+</body>
+</html>

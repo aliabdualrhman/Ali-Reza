@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- قدرة الإشعارات البعيدة (APNs).
+
+	     بدون هذا الملف تُبنى الحزمة بنجاح ولا يصل إشعار واحد أبداً:
+	     يفشل تسجيل الجهاز لدى آبل صامتاً. وهو أشيع عطل إشعارات على
+	     iOS، ولا يظهر إلا بعد الرفع إلى TestFlight.
+
+	     `development` تعمل في الحالتين — آبل تستبدلها بـ`production`
+	     تلقائياً عند التوزيع من App Store. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

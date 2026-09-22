@@ -1,0 +1,91 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- الاتصال بالباك إند وخوادم الخرائط.
+         Flutter يضيفه لنسخ التطوير تلقائياً لكن ليس لنسخة الإصدار،
+         فبدون هذا السطر يعمل التطبيق أثناء التطوير ويفشل بعد النشر. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- الموقع: تقريبي ودقيق معاً.
+         أندرويد ١٢ فما فوق يعرض للمستخدم خياراً بين "دقيق" و"تقريبي"،
+         ولا يظهر الخيار إن لم نطلب الاثنين. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- أندرويد ١٣ فما فوق يتطلب إذناً صريحاً للإشعارات.
+         بدونه تُرسل الرسائل بنجاح ولا تظهر شيئاً — فشل صامت يصعب
+         تشخيصه: الخادم يقول "أُرسل" ولا يرى الراكب شيئاً.
+
+         **ولا يكفي أن تحقنه المكتبة عند الدمج:** حينها لا يطلبه
+         التطبيق من المستخدم، فيبقى مرفوضاً افتراضياً على أندرويد ١٣
+         فما فوق — وهو أغلب أجهزة سوقنا. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- الكاميرا للصورة الحية. image_picker يفتح تطبيق الكاميرا بنيّة
+         نظامية فلا يحتاج الإذن تقنياً، لكن بعض أجهزة شاومي تطلبه. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- استعلام عن تطبيقات الملاحة قبل عرضها للسائق.
+         أندرويد ١١ فما فوق يخفي التطبيقات المثبّتة ما لم تُعلَن هنا،
+         فبدونها يفشل canLaunchUrl دائماً ويبدو Waze غير مثبَّت. -->
+    <queries>
+        <package android:name="com.waze" />
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="app.organicmaps" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+    </queries>
+
+
+    <!-- واتساب: أندرويد ١١ فما فوق يخفي التطبيقات المثبّتة ما لم تُعلَن
+         هنا، فبدونها يفتح رابط wa.me في المتصفح بدل التطبيق. -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
+
+    <application
+        android:label="${appLabel}"
+        android:name="${applicationName}"
+        android:icon="@mipmap/zanbour_icon">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>

@@ -1,0 +1,34 @@
+name: zanbour_core
+description: الطبقة المشتركة بين تطبيقي زنبور — السمة والتحقق والأخطاء وخدمات الخرائط.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  # لعرض رقم البناء داخل التطبيق — يميّز نسخة المختبِر
+  package_info_plus: ^10.2.1
+  flutter:
+    sdk: flutter
+
+  # خدمات الخرائط والموقع
+  geolocator: ^14.0.3
+  http: ^1.6.0
+  latlong2: ^0.10.1
+
+  # حفظ صور الخريطة على الهاتف — انظر lib/src/map_tiles.dart.
+  # flutter_map بالنسخة نفسها في التطبيقين، فمزوّد الصور يُعرَّف هنا مرة.
+  flutter_map: ^8.3.2
+  cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
+
+  # ترجمة أخطاء Supabase إلى رسائل عربية
+  supabase_flutter: ^2.17.2
+  url_launcher: ^6.3.2
+
+  flutter_riverpod: ^3.4.2
+  permission_handler: ^13.0.2
+
+dev_dependencies:
+  flutter_lints: ^6.0.0

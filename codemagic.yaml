@@ -1,0 +1,126 @@
+# =============================================================================
+# بناء آيفون على Codemagic — بلا جهاز ماك
+# =============================================================================
+# Codemagic يأخذ الشيفرة من GitHub، ويبنيها على ماك عنده، ويوقّعها
+# ويرفعها إلى TestFlight. الدليل الكامل في docs/IOS-BUILD.md.
+#
+# ---------------------------------------------------------------------------
+# ما يجب ضبطه في لوحة Codemagic قبل أول بناء — مرّةً واحدة
+# ---------------------------------------------------------------------------
+# ١) Teams ← Integrations ← Developer Portal ← أضف مفتاح App Store Connect
+#    API **باسم `zanbour_asc`** بالضبط (الاسم يُقرأ في `integrations` أدناه).
+#
+# ٢) مجموعة متغيرات **باسم `zanbour`** (App settings ← Environment variables)،
+#    كلها **Secure**:
+#
+#      GEOAPIFY_KEY     مفتاح الخرائط — كما في scripts/build-release.ps1
+#      RIDER_ENV_B64    محتوى apps/rider/.env مرمّزاً base64
+#      DRIVER_ENV_B64   محتوى apps/driver/.env مرمّزاً base64
+#      RIDER_GSI_B64    apps/rider/ios/Runner/GoogleService-Info.plist base64
+#      DRIVER_GSI_B64   apps/driver/ios/Runner/GoogleService-Info.plist base64
+#
+#    **لماذا base64؟** هذه الملفات مستثناة من git عمداً (انظر .gitignore) —
+#    فلا يجدها Codemagic في المستودع. نحملها في متغيرات محمية، ونعيد
+#    كتابتها ملفاتٍ قبل البناء. والترميز يحفظ الأسطر والرموز كما هي.
+#
+# **بدون `GoogleService-Info.plist` يعمل التطبيق ولا يصل إشعارٌ واحد** —
+# فالسكربت يتوقف إن غاب المتغير بدل أن يبني تطبيقاً أصمّ.
+# =============================================================================
+
+definitions:
+  # ما يشترك فيه التطبيقان — يُكتب مرة.
+  env: &env
+    flutter: 3.47.2          # النسخة نفسها على ويندوز — اختلافها يغيّر السلوك
+    xcode: latest
+    cocoapods: default
+    groups:
+      - zanbour
+
+  publish: &publish
+    app_store_connect:
+      auth: integration
+      # يظهر في TestFlight للمختبرين الداخليين بلا مراجعة من آبل
+      submit_to_testflight: true
+
+workflows:
+  # ---------------------------------------------------------------------------
+  ios-rider:
+    name: iOS — زنبور (الراكب)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: zanbour_asc
+    environment:
+      <<: *env
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: iq.zanbour.rider
+    scripts:
+      - name: الأسرار
+        script: |
+          set -e
+          test -n "$RIDER_ENV_B64"  || { echo "RIDER_ENV_B64 غير مضبوط";  exit 1; }
+          test -n "$RIDER_GSI_B64"  || { echo "RIDER_GSI_B64 غير مضبوط";  exit 1; }
+          test -n "$GEOAPIFY_KEY"   || { echo "GEOAPIFY_KEY غير مضبوط";   exit 1; }
+          echo "$RIDER_ENV_B64" | base64 --decode > apps/rider/.env
+          echo "$RIDER_GSI_B64" | base64 --decode > apps/rider/ios/Runner/GoogleService-Info.plist
+      - name: الحزم
+        script: |
+          cd apps/rider
+          flutter pub get
+          cd ios && pod install
+      - name: التوقيع
+        script: xcode-project use-profiles
+      - name: البناء
+        script: |
+          cd apps/rider
+          # رقم البناء من عدّاد Codemagic: يزيد مع كل بناء، وآبل ترفض
+          # رفع رقمٍ استُعمل من قبل.
+          flutter build ipa --release \
+            --build-number=$BUILD_NUMBER \
+            --dart-define=GEOAPIFY_KEY=$GEOAPIFY_KEY \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - apps/rider/build/ios/ipa/*.ipa
+    publishing:
+      <<: *publish
+
+  # ---------------------------------------------------------------------------
+  ios-driver:
+    name: iOS — كابتن زنبور (السائق)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: zanbour_asc
+    environment:
+      <<: *env
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: iq.zanbour.driver
+    scripts:
+      - name: الأسرار
+        script: |
+          set -e
+          test -n "$DRIVER_ENV_B64" || { echo "DRIVER_ENV_B64 غير مضبوط"; exit 1; }
+          test -n "$DRIVER_GSI_B64" || { echo "DRIVER_GSI_B64 غير مضبوط"; exit 1; }
+          test -n "$GEOAPIFY_KEY"   || { echo "GEOAPIFY_KEY غير مضبوط";   exit 1; }
+          echo "$DRIVER_ENV_B64" | base64 --decode > apps/driver/.env
+          echo "$DRIVER_GSI_B64" | base64 --decode > apps/driver/ios/Runner/GoogleService-Info.plist
+      - name: الحزم
+        script: |
+          cd apps/driver
+          flutter pub get
+          cd ios && pod install
+      - name: التوقيع
+        script: xcode-project use-profiles
+      - name: البناء
+        script: |
+          cd apps/driver
+          flutter build ipa --release \
+            --build-number=$BUILD_NUMBER \
+            --dart-define=GEOAPIFY_KEY=$GEOAPIFY_KEY \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - apps/driver/build/ios/ipa/*.ipa
+    publishing:
+      <<: *publish
