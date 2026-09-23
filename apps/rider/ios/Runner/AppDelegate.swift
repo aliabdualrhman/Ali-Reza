@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import firebase_messaging
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -7,18 +8,15 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // **إلزامي مع UIScene + FlutterImplicitEngineDelegate (messaging 16.7+).**
+    // المكوّنات تُسجَّل بعد didFinishLaunching، وآبل تطلب ضبط
+    // UNUserNotificationCenter.delegate قبل العودة من هذه الدالة.
+    FLTFirebaseMessagingPlugin.configureNotificationCenterDelegate()
+
     let ok = super.application(application, didFinishLaunchingWithOptions: launchOptions)
 
-    // **إلزامي مع UIScene + FlutterImplicitEngineDelegate.**
-    //
-    // `didFinishLaunching` / `scene:willConnect` قد تمرّ قبل أن يُسجَّل
-    // مكوّن `firebase_messaging`، فيُتخطّى طلب رمز APNs صامتاً — ولا
-    // يُولَّد رمز FCM أبداً (`apns-token-not-set`). أندرويد لا يتأثّر؛
-    // آيفون وحده يصير أصمّ. انظر flutterfire#18555 و#18620.
-    //
-    // لا نضبط `UNUserNotificationCenter.delegate` هنا عمداً: نتركه
-    // لـ`flutter_local_notifications` وفايربيز حتى لا يبتلع أحدهما
-    // إشعارات الآخر في المقدّمة (flutterfire#18699).
+    // طلب رمز APNs صراحةً — بدونه لا يُولَّد رمز FCM على الآيفون
+    // (`apns-token-not-set`). انظر flutterfire#18555 و#18620.
     application.registerForRemoteNotifications()
 
     return ok

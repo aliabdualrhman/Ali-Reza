@@ -36,8 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   webview_flutter: ^4.14.1
   # إشعارات المدير — النسختان نفسهما في تطبيقَي الراكب والسائق.
-  firebase_core: ^4.14.0
-  firebase_messaging: ^16.6.0
+  firebase_core: ^4.15.0
+  firebase_messaging: ^16.7.0
   path_provider: ^2.1.6
   open_filex: ^4.7.0
 

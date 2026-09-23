@@ -56,7 +56,10 @@ dependencies:
   # إشعارات الراكب: قُبل طلبك، السائق وصل، أُلغيت الرحلة.
   # **لم تكن موجودة إطلاقاً** — كان الراكب يجهل كل ما يجري ما لم يبقَ
   # محدّقاً في الشاشة.
-  firebase_core: ^4.14.0
+  # **4.15.0 مع messaging 16.7.0** — كلاهما يثبّت firebase-ios-sdk
+  # 12.19.0. الإبقاء على 4.14.0 مع 16.7.0 يكسر SPM على Codemagic
+  # (12.18.0 مقابل 12.19.0).
+  firebase_core: ^4.15.0
   # **16.7.0 لا 16.6.0.** على UIScene + FlutterImplicitEngineDelegate
   # كانت 16.5–16.6 تفوّت `registerForRemoteNotifications` فيفوت رمز
   # APNs ولا يُولَّد رمز FCM أبداً (`apns-token-not-set`) — أندرويد
