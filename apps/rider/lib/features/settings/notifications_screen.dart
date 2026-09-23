@@ -1,9 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/push_service.dart';
-import '../auth/auth_repository.dart';
+import '../home/home_screen.dart' show riderPushServiceProvider;
 
 /// شاشة «الإشعارات» في تطبيق الراكب.
 ///
@@ -34,7 +35,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _check() async {
     setState(() => _busy = true);
-    final s = await PushService(ref.read(supabaseProvider)).diagnose();
+    final s = await ref.read(riderPushServiceProvider).diagnose();
     if (mounted) {
       setState(() {
         _status = s;
@@ -45,7 +46,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _resync() async {
     setState(() => _busy = true);
-    await PushService(ref.read(supabaseProvider)).resync();
+    await ref.read(riderPushServiceProvider).resync();
     await _check();
   }
 
@@ -110,7 +111,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               ok: s.hasToken,
               detail: s.hasToken
                   ? 'وُلّد بنجاح'
-                  : 'لم يُولَّد — خدمات Google غير متاحة على هذا الجهاز',
+                  : defaultTargetPlatform == TargetPlatform.iOS
+                      ? 'لم يُولَّد — تسجيل APNs لم يكتمل بعد'
+                      : 'لم يُولَّد — خدمات Google غير متاحة على هذا الجهاز',
             ),
             _Row(
               label: 'مسجَّل في الخادم',
@@ -157,11 +160,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         s.permissionGranted != true
                             ? 'اسمح للتطبيق بإرسال الإشعارات من إعدادات '
                                 'هاتفك، ثم أعد الفحص.'
-                            : 'جهازك لا يستطيع استقبال الإشعارات وهو مغلق — '
-                                'خدمات Google غير متاحة عليه.\n\n'
-                                'لكنّ إشعارات رحلتك ستصلك ما دام التطبيق '
-                                'مفتوحاً أو يعمل في الخلفية. أبقِه مفتوحاً '
-                                'أثناء انتظار سائقك.',
+                            : !s.hasToken
+                                ? defaultTargetPlatform == TargetPlatform.iOS
+                                    ? 'رمز الجهاز لم يُولَّد بعد على آيفون '
+                                        '(تسجيل APNs). تأكد من الاتصال '
+                                        'بالإنترنت، اضغط «إعادة المحاولة»، '
+                                        'وإن استمر العطل أعد تثبيت نسخة '
+                                        'TestFlight بعد آخر بناء.'
+                                    : 'جهازك لا يستطيع استقبال الإشعارات وهو '
+                                        'مغلق — خدمات Google غير متاحة عليه.\n\n'
+                                        'لكنّ إشعارات رحلتك ستصلك ما دام '
+                                        'التطبيق مفتوحاً أو يعمل في الخلفية. '
+                                        'أبقِه مفتوحاً أثناء انتظار سائقك.'
+                                : 'الرمز وُلّد لكنّه لم يُسجَّل في الخادم '
+                                    'بعد — اضغط «إعادة المحاولة».',
                         style: theme.textTheme.bodyMedium,
                       ),
                     ],

@@ -471,7 +471,9 @@ String _resultOf(RiderPushStatus s) {
     return 'الإشعارات ما زالت مطفأة — اضغط «فتح» وفعّلها من إعدادات الهاتف';
   }
   if (!s.hasToken) {
-    return 'خدمات Google لا تستجيب — تحقّق من الإنترنت وأعد المحاولة';
+    return defaultTargetPlatform == TargetPlatform.iOS
+        ? 'رمز الجهاز لم يُولَّد بعد — أعد المحاولة بعد لحظة أو أعد تثبيت TestFlight'
+        : 'خدمات Google لا تستجيب — تحقّق من الإنترنت وأعد المحاولة';
   }
   return 'تعذّر تسجيل جهازك — أعد المحاولة بعد لحظة';
 }

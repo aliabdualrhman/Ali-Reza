@@ -209,6 +209,14 @@ class PushService {
     final initial = await FirebaseMessaging.instance.getInitialMessage();
     if (initial != null) onOpened(initial.data);
 
+    // على iOS: عرض الإشعار في المقدّمة حتى لو مرّ عبر FCM مباشرة.
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
     // ---- تسجيل الرمز الآن إن كانت هناك جلسة ----
     //
     // **العطل الذي أصلحناه هنا:** كنا نزامن الرمز مرة واحدة عند إقلاع
@@ -218,6 +226,17 @@ class PushService {
     //
     // النتيجة: `profiles.fcm_token` يحمل رمز التثبيت السابق الميت،
     // وفايربيز ترد `404 NotRegistered`، ولا يصل إشعار واحد أبداً.
+    await _syncToken();
+    // APNs قد يتأخّر بعد الإقلاع — إعادة محاولة صامتة بعد ثوانٍ.
+    unawaited(_retrySyncTokenLater());
+  }
+
+  /// إعادة مزامنة الرمز بعد تأخير — إن فشلت المحاولة الأولى على iOS.
+  Future<void> _retrySyncTokenLater() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    await Future<void>.delayed(const Duration(seconds: 3));
+    await _syncToken();
+    await Future<void>.delayed(const Duration(seconds: 8));
     await _syncToken();
   }
 
@@ -251,6 +270,7 @@ class PushService {
     }
 
     try {
+      await _waitForApnsToken();
       device = await FirebaseMessaging.instance.getToken();
     } catch (e) {
       error = 'تعذّر توليد رمز الجهاز: $e';
@@ -328,12 +348,27 @@ class PushService {
 
   Future<void> _syncToken() async {
     try {
+      // **على iOS: انتظر رمز APNs قبل `getToken`.** بدونه ترمي
+      // `apns-token-not-set` — وكان الخطأ يُبتلَع هنا مرةً واحدة ولا
+      // يُعاد إلا عند تغيّر الجلسة، فيبقى الجهاز أصمّ بعد الإقلاع.
+      await _waitForApnsToken();
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await _saveToken(token);
     } catch (e) {
       // فشل الحصول على الرمز لا يمنع عمل التطبيق — السائق سيرى العروض
       // ما دام التطبيق مفتوحاً. نسجّل ولا نُسقط.
       debugPrint('تعذّر الحصول على رمز الإشعارات: $e');
+    }
+  }
+
+  /// ينتظر رمز APNs على آيفون قبل طلب رمز FCM.
+  static Future<void> _waitForApnsToken() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    // حتى ~12 ثانية — شبكة بطيئة أو إقلاع أول بعد التثبيت يحتاج وقتاً.
+    for (var i = 0; i < 48; i++) {
+      final apns = await FirebaseMessaging.instance.getAPNSToken();
+      if (apns != null) return;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
     }
   }
 

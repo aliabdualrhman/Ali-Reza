@@ -57,7 +57,11 @@ dependencies:
   # **لم تكن موجودة إطلاقاً** — كان الراكب يجهل كل ما يجري ما لم يبقَ
   # محدّقاً في الشاشة.
   firebase_core: ^4.14.0
-  firebase_messaging: ^16.6.0
+  # **16.7.0 لا 16.6.0.** على UIScene + FlutterImplicitEngineDelegate
+  # كانت 16.5–16.6 تفوّت `registerForRemoteNotifications` فيفوت رمز
+  # APNs ولا يُولَّد رمز FCM أبداً (`apns-token-not-set`) — أندرويد
+  # يعمل وiOS أصمّ. أُصلح في #18620 و#18650.
+  firebase_messaging: ^16.7.0
   flutter_local_notifications: ^22.3.0
   flutter_map: ^8.3.2
   latlong2: ^0.10.1

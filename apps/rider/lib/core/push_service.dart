@@ -180,6 +180,26 @@ class PushService {
     final initial = await FirebaseMessaging.instance.getInitialMessage();
     if (initial != null) onOpened(initial.data);
 
+    // على iOS: عرض الإشعار في المقدّمة حتى لو مرّ عبر FCM مباشرة
+    // (بجانب عرضنا المحلي عبر flutter_local_notifications).
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    await _syncToken();
+    // APNs قد يتأخّر بعد الإقلاع — إعادة محاولة صامتة بعد ثوانٍ.
+    unawaited(_retrySyncTokenLater());
+  }
+
+  /// إعادة مزامنة الرمز بعد تأخير — إن فشلت المحاولة الأولى على iOS.
+  Future<void> _retrySyncTokenLater() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    await Future<void>.delayed(const Duration(seconds: 3));
+    await _syncToken();
+    await Future<void>.delayed(const Duration(seconds: 8));
     await _syncToken();
   }
 
@@ -192,13 +212,30 @@ class PushService {
 
   Future<void> _syncToken() async {
     try {
+      // **على iOS: انتظر رمز APNs قبل `getToken`.** بدونه ترمي
+      // `apns-token-not-set` — وكان الخطأ يُبتلَع هنا مرةً واحدة ولا
+      // يُعاد إلا عند تغيّر الجلسة، فيبقى الجهاز أصمّ بعد الإقلاع.
+      await _waitForApnsToken();
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await _saveToken(token);
     } catch (e) {
-      // جهازٌ بلا خدمات Google لا يولّد رمزاً (`FCM Registration failed`)،
-      // وهي نسخٌ شائعة في سوقنا. لا يمنع ذلك عمل التطبيق — الشاشة تتابع
-      // الحالة لحظياً ما دامت مفتوحة.
+      // أندرويد بلا خدمات Google، أو آيفون بلا رمز APNs بعد.
+      // الشاشة تتابع الحالة لحظياً ما دامت مفتوحة.
       debugPrint('تعذّر الحصول على رمز الإشعارات: $e');
+    }
+  }
+
+  /// ينتظر رمز APNs على آيفون قبل طلب رمز FCM.
+  ///
+  /// آبل قد تتأخّر ثوانٍ بعد `registerForRemoteNotifications`. وبدون
+  /// الانتظار يفشل `getToken` مرةً ويُبتلَع الخطأ، ولا يصل إشعار.
+  static Future<void> _waitForApnsToken() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    // حتى ~12 ثانية — شبكة بطيئة أو إقلاع أول بعد التثبيت يحتاج وقتاً.
+    for (var i = 0; i < 48; i++) {
+      final apns = await FirebaseMessaging.instance.getAPNSToken();
+      if (apns != null) return;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
     }
   }
 
@@ -292,11 +329,12 @@ class PushService {
     }
 
     try {
+      await _waitForApnsToken();
       token = await FirebaseMessaging.instance.getToken();
     } catch (e) {
-      // **لا نُخفيه خلف رسالة عامة.** `SERVICE_NOT_AVAILABLE` يعني
-      // خدمات Google، لا تطبيقنا — ومن يقرأ «حدث خطأ» يبحث في المكان
-      // الخطأ يوماً كاملاً.
+      // **لا نُخفيه خلف رسالة عامة.** على أندرويد `SERVICE_NOT_AVAILABLE`
+      // يعني خدمات Google؛ وعلى آيفون `apns-token-not-set` يعني أن
+      // تسجيل APNs لم يكتمل — مكانان مختلفان للبحث.
       error = '$e';
     }
 
