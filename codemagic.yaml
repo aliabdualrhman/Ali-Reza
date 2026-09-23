@@ -19,9 +19,13 @@
 #      RIDER_GSI_B64    apps/rider/ios/Runner/GoogleService-Info.plist base64
 #      DRIVER_GSI_B64   apps/driver/ios/Runner/GoogleService-Info.plist base64
 #
-#    **لماذا base64؟** هذه الملفات مستثناة من git عمداً (انظر .gitignore) —
+#     **لماذا base64؟** هذه الملفات مستثناة من git عمداً (انظر .gitignore) —
 #    فلا يجدها Codemagic في المستودع. نحملها في متغيرات محمية، ونعيد
 #    كتابتها ملفاتٍ قبل البناء. والترميز يحفظ الأسطر والرموز كما هي.
+#
+#    على ويندوز ولّد القيم دفعةً واحدة:
+#      powershell -ExecutionPolicy Bypass -File scripts\prepare-codemagic.ps1
+#    الدليل التفصيلي: docs/CODEMAGIC.md
 #
 # **بدون `GoogleService-Info.plist` يعمل التطبيق ولا يصل إشعارٌ واحد** —
 # فالسكربت يتوقف إن غاب المتغير بدل أن يبني تطبيقاً أصمّ.
@@ -30,7 +34,7 @@
 definitions:
   # ما يشترك فيه التطبيقان — يُكتب مرة.
   env: &env
-    flutter: 3.47.2          # النسخة نفسها على ويندوز — اختلافها يغيّر السلوك
+    flutter: 3.47.5          # يطابق stable الحالي على ويندوز
     xcode: latest
     cocoapods: default
     groups:
@@ -70,7 +74,9 @@ workflows:
           flutter pub get
           cd ios && pod install
       - name: التوقيع
-        script: xcode-project use-profiles
+        # لا تستخدم **/*.xcodeproj — مجلدات «تطبيق الراكب/السائق»
+        # العربية في المستودع تُفشل التوقيع على المسار غير اللاتيني.
+        script: xcode-project use-profiles --project apps/rider/ios/Runner.xcodeproj
       - name: البناء
         script: |
           cd apps/rider
@@ -112,7 +118,7 @@ workflows:
           flutter pub get
           cd ios && pod install
       - name: التوقيع
-        script: xcode-project use-profiles
+        script: xcode-project use-profiles --project apps/driver/ios/Runner.xcodeproj
       - name: البناء
         script: |
           cd apps/driver

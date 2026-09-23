@@ -1,14 +1,18 @@
-# مواد متجر جوجل بلاي
+# مواد المتاجر (Play + App Store)
 
-كل ما يُلصق في Play Console عند إنشاء التطبيقين. انسخ من هنا مباشرةً.
+كل ما يُلصق في Play Console أو App Store Connect. انسخ من هنا مباشرةً.
+
+دليل البناء السحابي وTestFlight: **`docs/CODEMAGIC.md`**.
 
 **الصور جاهزة في هذا المجلد:**
 
 | الملف | المقاس | أين يُرفع |
 |---|---|---|
-| `icon_512.png` | ٥١٢×٥١٢ | App icon |
-| `feature_rider.png` | ١٠٢٤×٥٠٠ | Feature graphic — تطبيق الراكب |
-| `feature_driver.png` | ١٠٢٤×٥٠٠ | Feature graphic — تطبيق السائق |
+| `icon_512.png` | ٥١٢×٥١٢ | Play — App icon |
+| `icon_1024_rider.png` | ١٠٢٤×١٠٢٤ | App Store — أيقونة الراكب |
+| `icon_1024_driver.png` | ١٠٢٤×١٠٢٤ | App Store — أيقونة السائق |
+| `feature_rider.png` | ١٠٢٤×٥٠٠ | Play — Feature graphic الراكب |
+| `feature_driver.png` | ١٠٢٤×٥٠٠ | Play — Feature graphic السائق |
 
 **لقطات الشاشة عليك أنت** — من هاتفك، من ٢ إلى ٨ لكل تطبيق. الأفضل:
 شاشة الخريطة واختيار الوجهة، وشاشة الأجرة، وشاشة البحث عن سائق،
@@ -17,6 +21,22 @@
 
 **لا تلتقطها من محاكٍ** — جوجل تقبلها، لكن لقطات الجهاز الحقيقي تُظهر
 الخريطة والبيانات الفعلية فتبدو أصدق.
+
+---
+
+# App Store Connect / TestFlight
+
+| الحقل | الراكب | السائق |
+|---|---|---|
+| Bundle ID | `iq.zanbour.rider` | `iq.zanbour.driver` |
+| الاسم | زنبور | كابتن زنبور |
+| أيقونة 1024 | `icon_1024_rider.png` | `icon_1024_driver.png` |
+| التصنيف | Navigation | Navigation |
+| التشفير | لا يستخدم تشفيراً غير معفى | نفس الجواب |
+
+الوصف الكامل: انسخ أقسام الراكب/السائق أعلاه (نفس نصوص Play تصلح للبداية).
+
+الخطوات السحابية كاملة: [`docs/CODEMAGIC.md`](../CODEMAGIC.md).
 
 ---
 

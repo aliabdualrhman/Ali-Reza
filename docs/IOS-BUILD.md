@@ -74,9 +74,15 @@ cd apps/driver && flutter pub get && cd ios && pod install && cd ../..
 1. **مفتاح APNs.** من `developer.apple.com` ← Keys ← مفتاح `.p8` جديد
    بقدرة *Apple Push Notifications service*. يُنزَّل **مرّةً واحدة**
    ولا يُنزَّل ثانيةً أبداً — احفظه.
-2. ارفعه إلى Firebase ← Project Settings ← Cloud Messaging ← قسم iOS
-   لكلٍّ من `iq.zanbour.rider` و`iq.zanbour.driver`، مع Key ID
-   وTeam ID.
+2. ارفعه إلى Firebase ← Project Settings ← Cloud Messaging ←
+   Apple app configuration (مشروع `zanbour-3b774`):
+
+   | الحقل | القيمة (الراكب) |
+   |-------|-----------------|
+   | Auth Key | `AuthKey_HYAXR2K9KQ.p8` |
+   | Key ID | `HYAXR2K9KQ` |
+   | Team ID | `VHLSHY892L` |
+
    **بدون هذه الخطوة تفشل `getToken()` بخطأ `apns-token-not-set`
    ولا يصل إشعارٌ واحد** مهما كانت الشيفرة سليمة.
 3. **قدرة Push Notifications** في ملفّ التعريف (provisioning profile)

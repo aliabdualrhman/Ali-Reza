@@ -76,6 +76,7 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "zanbour_icon"
   ios: true
+  remove_alpha_ios: true
   image_path: "../../assets/app_icon_driver.png"
   adaptive_icon_background: "#F5B301"
   adaptive_icon_foreground: "../../assets/app_icon_driver_fg.png"
