@@ -38,7 +38,14 @@ Future<void> main() async {
       await Supabase.initialize(url: url, publishableKey: key);
     }
   } catch (e) {
-    bootError = e.toString();
+    final msg = e.toString();
+    // غالباً .env داخل الـ IPA بترميز UTF-16 أو base64 فاسد من Codemagic.
+    if (msg.contains('FormatException') || msg.contains('Unexpected extension')) {
+      bootError =
+          'ملف الإعدادات تالف (ترميز خاطئ).\nحدّث RIDER/DRIVER_ENV_B64 في Codemagic من prepare-codemagic.ps1 ثم أعد البناء.';
+    } else {
+      bootError = msg;
+    }
   }
 
   runApp(const ProviderScope(child: ZanbourApp()));

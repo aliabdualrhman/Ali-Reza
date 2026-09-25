@@ -94,7 +94,8 @@ $checklist = @"
 
 Integration App Store Connect يجب أن تُسمّى بالضبط: zanbour_asc
 
-Workflow للتجربة الأولى: «iOS — زنبور (الراكب)»
+Workflow الراكب: «iOS — زنبور (الراكب)»
+Workflow السائق: «iOS — كابتن زنبور (السائق)»
 
 التفاصيل الكاملة: docs/CODEMAGIC.md
 "@

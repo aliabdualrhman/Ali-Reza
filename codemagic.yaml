@@ -66,8 +66,13 @@ workflows:
           test -n "$RIDER_ENV_B64"  || { echo "RIDER_ENV_B64 غير مضبوط";  exit 1; }
           test -n "$RIDER_GSI_B64"  || { echo "RIDER_GSI_B64 غير مضبوط";  exit 1; }
           test -n "$GEOAPIFY_KEY"   || { echo "GEOAPIFY_KEY غير مضبوط";   exit 1; }
-          echo "$RIDER_ENV_B64" | base64 --decode > apps/rider/.env
-          echo "$RIDER_GSI_B64" | base64 --decode > apps/rider/ios/Runner/GoogleService-Info.plist
+          # printf لا echo: echo قد يفسد الأسطر في بعض البيئات.
+          printf '%s' "$RIDER_ENV_B64" | base64 --decode > apps/rider/.env
+          printf '%s' "$RIDER_GSI_B64" | base64 --decode > apps/rider/ios/Runner/GoogleService-Info.plist
+          # فشل مبكر إن كان .env بترميز خاطئ (UTF-16 من ويندوز) —
+          # وإلا يظهر على الجهاز: FormatException: Unexpected extension byte
+          python3 -c "p='apps/rider/.env'; open(p,'rb').read().decode('utf-8'); print('rider .env UTF-8 OK')"
+          grep -q '^SUPABASE_URL=http' apps/rider/.env || { echo "RIDER_ENV_B64 لا يحتوي SUPABASE_URL صالحاً"; exit 1; }
       - name: الحزم
         script: |
           cd apps/rider
@@ -110,8 +115,11 @@ workflows:
           test -n "$DRIVER_ENV_B64" || { echo "DRIVER_ENV_B64 غير مضبوط"; exit 1; }
           test -n "$DRIVER_GSI_B64" || { echo "DRIVER_GSI_B64 غير مضبوط"; exit 1; }
           test -n "$GEOAPIFY_KEY"   || { echo "GEOAPIFY_KEY غير مضبوط";   exit 1; }
-          echo "$DRIVER_ENV_B64" | base64 --decode > apps/driver/.env
-          echo "$DRIVER_GSI_B64" | base64 --decode > apps/driver/ios/Runner/GoogleService-Info.plist
+          printf '%s' "$DRIVER_ENV_B64" | base64 --decode > apps/driver/.env
+          printf '%s' "$DRIVER_GSI_B64" | base64 --decode > apps/driver/ios/Runner/GoogleService-Info.plist
+          # فشل مبكر إن كان .env بترميز خاطئ (UTF-16 من ويندوز)
+          python3 -c "p='apps/driver/.env'; open(p,'rb').read().decode('utf-8'); print('driver .env UTF-8 OK')"
+          grep -q '^SUPABASE_URL=http' apps/driver/.env || { echo "DRIVER_ENV_B64 لا يحتوي SUPABASE_URL صالحاً"; exit 1; }
       - name: الحزم
         script: |
           cd apps/driver

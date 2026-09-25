@@ -19,8 +19,9 @@ Workflow الأول للتجربة: **iOS — زنبور (الراكب)**
 | توقيع Codemagic + رفع TestFlight | في `codemagic.yaml` |
 | أذونات الموقع/الكاميرا/الإشعارات | في `Info.plist` |
 | تشفير معفى (`ITSAppUsesNonExemptEncryption`) | مضبوط |
-| Team ID آبل | `VHLSHY892L` (في Xcode الراكب) |
+| Team ID آبل | `VHLSHY892L` (في Xcode الراكب والسائق) |
 | APNs Auth Key في Firebase (الراكب) | **مرفوع** — Key ID `HYAXR2K9KQ` (Development + Production) |
+| Workflow السائق | `ios-driver` → **iOS — كابتن زنبور (السائق)** |
 
 ---
 
@@ -65,16 +66,17 @@ apps/rider/ios/Runner/GoogleService-Info.plist
 apps/driver/ios/Runner/GoogleService-Info.plist
 ```
 
-5. **إشعارات iOS (الراكب) — APNs Auth Key** ✅ **تم** (لا تعِد الرفع):
+5. **إشعارات iOS — APNs Auth Key** ✅ **تم للراكب** (Key ID `HYAXR2K9KQ`):
 
    | الحقل | القيمة |
    |-------|--------|
-   | التطبيق في Firebase | `iq.zanbour.rider` |
    | Key ID | `HYAXR2K9KQ` |
    | Team ID | `VHLSHY892L` |
-   | Development + Production | كلاهما مضبوط |
+   | Development + Production | كلاهما |
 
-   المفتاح المحلي محفوظ في `.codemagic-secrets/AuthKey_HYAXR2K9KQ.p8` (ليس في Git).
+   للسائق: في Firebase ← Cloud Messaging ← تطبيق iOS **`iq.zanbour.driver`**  
+   تأكد أن نفس المفتاح مرفوع (غالباً يُشارك على مستوى المشروع).  
+   المفتاح المحلي: `.codemagic-secrets/AuthKey_HYAXR2K9KQ.p8` (ليس في Git).
 
 إن لم يكن عندك بعد `apps/driver/.env` فانسخ قالب السائق واملأه:
 
@@ -133,13 +135,26 @@ App settings ← **Environment variables** ← مجموعة باسم **`zanbour`
 
 ## ٧) تشغيل البناء وTestFlight
 
+### الراكب (تم سابقاً)
 1. في Codemagic اختر workflow **iOS — زنبور (الراكب)**  
-2. Start new build  
-3. انتظر (~٢٠–٤٠ دقيقة على `mac_mini_m2`)  
-4. عند النجاح: `submit_to_testflight: true` يرفع الـ IPA تلقائياً  
-5. بعد دقائق إلى ساعة: App Store Connect ← TestFlight ← Internal ← ثبّت على آيفونك من تطبيق TestFlight
+2. Start new build → يرفع إلى TestFlight تلقائياً
+
+### السائق (كابتن زنبور) — نفس الخطوات
+1. تأكد أن تطبيق **كابتن زنبور** موجود في App Store Connect  
+   (Bundle ID `iq.zanbour.driver`، SKU `zanbour-driver`)  
+2. في Firebase ← Cloud Messaging ← تطبيق iOS `iq.zanbour.driver`  
+   ارفع نفس مفتاح APNs إن لم يكن مرفوعاً بعد  
+   (Key ID `HYAXR2K9KQ`، Team `VHLSHY892L`)  
+3. في Codemagic ← Environment variables ← مجموعة **`zanbour`**  
+   الصق/حدّث `DRIVER_ENV_B64` و`DRIVER_GSI_B64` من `.codemagic-secrets/`  
+4. اختر workflow **iOS — كابتن زنبور (السائق)** ← Start new build  
+5. انتظر (~٢٠–٤٠ دقيقة على `mac_mini_m2`)  
+6. عند النجاح: `submit_to_testflight: true` يرفع الـ IPA تلقائياً  
+7. App Store Connect ← TestFlight ← Internal ← ثبّت من تطبيق TestFlight
 
 **رقم البناء** يأتي من `$BUILD_NUMBER` في Codemagic — يزيد تلقائياً؛ لا تغيّره يدوياً إلا عند تعارض مع رقم قديم في App Store Connect.
+
+**قبل البناء:** Commit ثم Push من GitHub Desktop حتى يقرأ Codemagic آخر الشيفرة (ومنها `DEVELOPMENT_TEAM` للسائق).
 
 ---
 
