@@ -82,7 +82,13 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
             email: widget.email,
             token: code,
           );
-      // نجح: أُنشئت الجلسة والموجّه ينقل تلقائياً لشاشة الصورة الحية
+      // نجح: جلسة جديدة. نرفع راية التسجيل ونُبطل التوثيق حتى يقرأ
+      // الموجّه الحالة الصحيحة، ثم ننتقل صراحةً — الاعتماد على redirect
+      // وحده كان يفشل لأن `/verify-email` كانت تُستثنى من التوجيه.
+      if (!mounted) return;
+      ref.read(justSignedUpProvider.notifier).set(true);
+      ref.invalidate(verificationProvider);
+      context.go('/documents');
     } catch (e) {
       if (mounted) {
         setState(() {

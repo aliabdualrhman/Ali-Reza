@@ -132,6 +132,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       }
 
       if (outcome == SignUpOutcome.needsEmailConfirmation) {
+        // نفس راية المسار الفوري: بعد نجاح الرمز يوجّه الموجّه إلى
+        // الوثائق (أو رمز الهاتف إن لزم) بدل شاشة الانتظار.
+        ref.read(justSignedUpProvider.notifier).set(true);
         context.pushReplacement('/verify-email', extra: _email.text.trim());
       }
       // الحالة الأخرى: الجلسة نشطة، والموجّه ينقل تلقائياً

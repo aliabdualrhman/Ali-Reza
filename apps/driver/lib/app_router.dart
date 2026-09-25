@@ -230,14 +230,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         // بدونه يقرأ الحاجزُ حالةً قديمة فيعيده إلى الشاشة نفسها.
         builder: (ctx, _) => VerifyPhoneScreen(
           onDone: () {
-            // **تُطوى الراية أولاً.** لو انتقلنا وهي مرفوعة لأعادنا
-            // الموجّه إلى الشاشة نفسها.
-            ref.read(justSignedUpProvider.notifier).set(false);
+            // **الوجهة قبل طيّ الراية.** `_afterAuth` يعتمد على
+            // `justSignedUp` لإرسال التسجيل الجديد إلى الوثائق لا
+            // الانتظار. طيّها أولاً كان يُسقطه على `/pending`.
             ref.invalidate(verificationProvider);
-            // **الوثائق أولاً.** `/pending` مسموحةٌ قبل الاعتماد فلا
-            // يُخرجه الموجّه منها، فيقف أمام «قيد المراجعة» ولم يرفع
-            // شيئاً بعد.
-            ctx.go(_afterAuth(ref));
+            final next = _afterAuth(ref);
+            ref.read(justSignedUpProvider.notifier).set(false);
+            ctx.go(next);
           },
         ),
       ),
@@ -367,7 +366,10 @@ String _afterAuth(Ref ref) {
 /// التسجيل يدفعها، فيعمل `redirect` على المسار الجديد فلا يجدها في
 /// أيّ قائمة مسموحة فيردّها إلى `/documents`. فيمرّ السائق بلا رمزٍ
 /// أبداً — لا لأن الوضع بريد، بل لأن الموجّه لم يعرفها.
+///
+/// **`/verify-email` ليست هنا عمداً.** قبل الجلسة يبقيها `!loggedIn`.
+/// وبعد نجاح الرمز تُنشأ الجلسة؛ إن بقيت في القائمة منع السطر أعلاه
+/// التوجيه فيبقى السائق عالقاً على شاشة التوثيق إلى الأبد.
 bool _midAuthFlow(String path) =>
-    path == '/verify-email' ||
     path == '/reset-password' ||
     path == '/verify-phone';
