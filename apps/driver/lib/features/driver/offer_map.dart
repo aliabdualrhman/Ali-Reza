@@ -78,7 +78,7 @@ class OfferMap extends StatelessWidget {
                   urlTemplate: MapEndpoints.tiles,
                   // محفوظةٌ على الهاتف ثلاثين يوماً — انظر ZanbourTiles.
                   tileProvider: ZanbourTiles.provider(),
-                  userAgentPackageName: 'iq.zanbour.driver',
+                  userAgentPackageName: 'com.zanbour.driver',
                   // بلاطات أقل تفصيلاً تكفي لخريطةٍ بهذا الحجم، وتصل أسرع
                   // على شبكة الشارع.
                   maxNativeZoom: 18,

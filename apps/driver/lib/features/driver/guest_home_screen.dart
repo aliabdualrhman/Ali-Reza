@@ -101,7 +101,7 @@ class _GuestHomeScreenState extends ConsumerState<GuestHomeScreen> {
                     TileLayer(
                       urlTemplate: MapEndpoints.tiles,
                       tileProvider: ZanbourTiles.provider(),
-                      userAgentPackageName: 'iq.zanbour.driver',
+                      userAgentPackageName: 'com.zanbour.driver',
                       maxZoom: 19,
                     ),
                     if (_here != null)

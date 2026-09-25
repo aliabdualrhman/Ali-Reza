@@ -23,7 +23,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "iq.zanbour.driver"
+    namespace = "com.zanbour.driver"
     // 37 صراحةً لا flutter.compileSdkVersion (الذي يعطي 36).
     // بعض الحزم التي نستعملها بُنيت على منصة 37، وGradle يرفض بناء
     // تطبيق يعتمد مكتبة مترجمة على منصة أحدث من منصته.
@@ -48,7 +48,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "iq.zanbour.driver"
+        applicationId = "com.zanbour.driver"
 
         // **نسخة اختبار تتعايش مع نسخة المتجر.**
         //

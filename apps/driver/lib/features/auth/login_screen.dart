@@ -14,7 +14,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _email = TextEditingController();
+  final _identifier = TextEditingController();
   final _password = TextEditingController();
 
   bool _busy = false;
@@ -23,7 +23,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
-    _email.dispose();
+    _identifier.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -50,7 +50,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       await ref.read(authRepositoryProvider).signIn(
-            email: _email.text,
+            identifier: _identifier.text,
             password: _password.text,
           );
       // لا ننتقل يدوياً — الموجّه يستمع لتغيّر الجلسة ويعيد التوجيه تلقائياً
@@ -98,18 +98,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 32),
 
                     TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
+                      controller: _identifier,
+                      keyboardType: TextInputType.text,
                       textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.email],
-                      // البريد لاتيني دائماً — نفرض الاتجاه حتى لا ينقلب
-                      // شكله داخل واجهة عربية.
+                      autofillHints: const [
+                        AutofillHints.username,
+                        AutofillHints.email,
+                        AutofillHints.telephoneNumber,
+                      ],
+                      // الرقم والبريد لاتينيان — نفرض الاتجاه حتى لا ينقلبا
+                      // شكلهما داخل واجهة عربية.
                       textDirection: TextDirection.ltr,
                       decoration: const InputDecoration(
-                        labelText: 'البريد الإلكتروني',
-                        prefixIcon: Icon(Icons.alternate_email),
+                        labelText: 'رقم الهاتف أو البريد',
+                        hintText: '07XXXXXXXXX أو البريد',
+                        prefixIcon: Icon(Icons.person_outline),
                       ),
-                      validator: Validators.email,
+                      validator: Validators.emailOrPhone,
                     ),
                     const SizedBox(height: 16),
 

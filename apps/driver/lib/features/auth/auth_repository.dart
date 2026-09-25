@@ -206,12 +206,43 @@ class AuthRepository {
     return SignUpOutcome.needsEmailConfirmation;
   }
 
-  Future<void> signIn({required String email, required String password}) async {
+  /// دخول بالبريد أو برقم الهاتف المسجَّل عند إنشاء الحساب.
+  ///
+  /// GoTrue يقبل البريد فقط؛ إن كُتب رقمٌ نحلّه إلى البريد عبر
+  /// `resolve_login_email` ثم ندخل بنفس كلمة المرور.
+  Future<void> signIn({
+    required String identifier,
+    required String password,
+  }) async {
+    final id = identifier.trim();
+    final email = await _resolveLoginEmail(id);
     final res = await _sb.auth.signInWithPassword(
-      email: email.trim(),
+      email: email,
       password: password,
     );
     await assertRole(res.user?.id);
+  }
+
+  Future<String> _resolveLoginEmail(String identifier) async {
+    // بريد مباشر — لا حاجة لنداء قاعدة.
+    if (identifier.contains('@')) return identifier;
+
+    try {
+      final v = await _sb.rpc(
+        'resolve_login_email',
+        params: {'p_identifier': identifier},
+      );
+      final email = (v is String ? v : '$v').trim();
+      if (email.isNotEmpty && email != 'null') return email;
+    } on AuthException {
+      rethrow;
+    } catch (_) {
+      // دالة غير مُرحَّلة أو شبكة — نُظهر رسالة واضحة بدل خطأ غامض.
+      throw AuthException(
+        'تعذّر التحقق من رقم الهاتف. جرّب البريد أو أعد المحاولة.',
+      );
+    }
+    throw AuthException('لا يوجد حساب بهذا الرقم أو البريد');
   }
 
   /// **الحارس الذي كان ناقصاً.**

@@ -240,7 +240,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                         MapEndpoints.tiles,
                     // محفوظةٌ على الهاتف ثلاثين يوماً — انظر ZanbourTiles.
                     tileProvider: ZanbourTiles.provider(),
-                    userAgentPackageName: 'iq.zanbour.driver',
+                    userAgentPackageName: 'com.zanbour.driver',
                     maxZoom: 19,
                   ),
                   if (pos != null)
