@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'errors.dart';
+import 'guide_button.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'invite_screen.dart';
 import 'verify_phone_screen.dart';
@@ -166,6 +167,13 @@ class AccountScreen extends ConsumerWidget {
 
                 const SizedBox(height: 20),
                 _BalanceAndInvite(driver: driver),
+
+                // **شرح الاستخدام هنا لا في الشريط العلوي** (0121).
+                // شريط الراكب فيه خمس أيقونات أصلاً، ومن يبحث عن
+                // مساعدة يفتح «حسابي». ويختفي الزرّ إن لم يُضبط الرابط
+                // من اللوحة.
+                const SizedBox(height: 20),
+                const GuideButton(),
 
                 const SizedBox(height: 36),
                 const Divider(),

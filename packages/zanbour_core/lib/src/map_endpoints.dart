@@ -19,8 +19,30 @@
 class MapEndpoints {
   const MapEndpoints._();
 
-  /// مفتاح Geoapify. فارغ = لم يُمرَّر عند البناء.
-  static const key = String.fromEnvironment('GEOAPIFY_KEY');
+  /// مفتاح البناء — `--dart-define=GEOAPIFY_KEY=...`.
+  ///
+  /// **لم يعد المصدر الوحيد، وبقي آخر خطّ دفاع.** من بنى بلا هذه الراية
+  /// كان يخرج بتطبيق خرائطه ميتة ولا علاج إلا بناءٌ جديد — أي أن المفتاح
+  /// رهينةٌ عند من يبني. صار يُقرأ من اللوحة أوّلاً (0119)، وهذا يبقى
+  /// لمن لم يضبط الصفّ بعد، ولمن لم تصله شبكةٌ عند الإقلاع.
+  static const _buildKey = String.fromEnvironment('GEOAPIFY_KEY');
+
+  static String? _remoteKey;
+  static String? _remoteStyle;
+
+  /// المفتاح العامل: ما ضبطه المدير إن وُجد، وإلا مفتاح البناء.
+  static String get key =>
+      (_remoteKey != null && _remoteKey!.isNotEmpty) ? _remoteKey! : _buildKey;
+
+  /// يتبنّى ما جاء من `public_settings`.
+  ///
+  /// **الفارغ يُتجاهَل ولا يمحو.** الصفّ يُدرَج فارغاً في الترحيل، ولو
+  /// تبنّينا الفراغ لأطفأنا خرائط بناءٍ كان يعمل — عطلٌ نصنعه بأيدينا
+  /// وهو أسوأ من الذي جئنا نعالجه.
+  static void adopt({String? key, String? style}) {
+    if (key != null && key.trim().isNotEmpty) _remoteKey = key.trim();
+    if (style != null && style.trim().isNotEmpty) _remoteStyle = style.trim();
+  }
 
   /// هل التطبيق مهيّأ للعمل؟ نفحصه عند الإقلاع بدل أن نكتشف الغياب
   /// من شاشة خريطة رمادية عند أول راكب.
@@ -29,8 +51,10 @@ class MapEndpoints {
   static const _api = 'https://api.geoapify.com/v1';
 
   /// بلاطات الخريطة. `osm-bright` أوضح الأنماط للشوارع الضيقة.
-  static const tileStyle =
+  static const _buildTileStyle =
       String.fromEnvironment('TILE_STYLE', defaultValue: 'osm-bright');
+
+  static String get tileStyle => _remoteStyle ?? _buildTileStyle;
 
   static String get tiles =>
       'https://maps.geoapify.com/v1/tile/$tileStyle/{z}/{x}/{y}.png?apiKey=$key';

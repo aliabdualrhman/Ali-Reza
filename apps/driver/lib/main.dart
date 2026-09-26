@@ -36,6 +36,11 @@ Future<void> main() async {
       // publishableKey لا anonKey: Supabase غيّرت صيغة مفاتيحها
       // (sb_publishable_...) وهجرت التسمية القديمة.
       await Supabase.initialize(url: url, publishableKey: key);
+
+      // **مفتاح الخرائط من اللوحة لا من البناء** (0119). لا ننتظره:
+      // لو تأخّرت الشبكة يقلع التطبيق بمفتاح البناء، وتصل القيمة
+      // الجديدة عند أوّل شاشةٍ تقرأ الإعدادات.
+      await loadMapConfig(Supabase.instance.client);
     }
   } catch (e) {
     final msg = e.toString();

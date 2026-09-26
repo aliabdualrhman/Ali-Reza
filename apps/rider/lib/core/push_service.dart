@@ -90,7 +90,7 @@ class PushService {
 
     await _local.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/ic_stat_zanbour'),
 
         // **بدون هذا السطر لا يعمل أي إشعار محلي على iOS.**
         // `initialize` ينجح، و`show` لا يرمي خطأً، ولا يظهر شيء — فشلٌ
@@ -113,15 +113,12 @@ class PushService {
       },
     );
 
-    await _local
+    final androidPlugin = _local
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_statusChannel);
+            AndroidFlutterLocalNotificationsPlugin>();
 
-    await _local
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_noticeChannel);
+    await androidPlugin?.createNotificationChannel(_statusChannel);
+    await androidPlugin?.createNotificationChannel(_noticeChannel);
 
     // **المستمعون قبل طلب الإذن.** حوار النظام يتوقف حتى يردّ المستخدم؛
     // ولو سجّل دخوله بينما الحوار معلّق لضاع الحدث ولم يُحفظ الرمز — ولا
@@ -134,6 +131,13 @@ class PushService {
 
     // أندرويد ١٣ فما فوق يتطلب إذناً صريحاً. بدونه تُرسل الرسائل بنجاح
     // ولا تظهر شيئاً — فشل صامت يصعب تشخيصه.
+    //
+    // نطلبه من مسارَي Firebase وlocal_notifications معاً: الأول يغطي
+    // رسائل FCM، والثاني يضمن أن `show` المحلي (والمقدّمة) مأذون —
+    // على بعض أجهزة شاومي/أوبو يكفي أحدهما ولا يكفي الآخر.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      await androidPlugin?.requestNotificationsPermission();
+    }
     await FirebaseMessaging.instance.requestPermission(
       alert: true,
       badge: true,
@@ -146,6 +150,8 @@ class PushService {
       final n = m.notification;
       if (n == null) return;
 
+      final channel = _channelFor(m.data);
+
       await _local.show(
         // **معرّف مشتق من الرحلة لا من الرسالة.** إشعارات الرحلة الواحدة
         // تتتابع — قُبل، وصل، انتهت — ومعرّفٌ ثابت يجعل كل واحد يحلّ
@@ -155,11 +161,14 @@ class PushService {
         body: n.body,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
-            _statusChannel.id,
-            _statusChannel.name,
-            channelDescription: _statusChannel.description,
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
             importance: Importance.high,
             priority: Priority.high,
+            icon: '@drawable/ic_stat_zanbour',
+            playSound: true,
+            sound: const RawResourceAndroidNotificationSound('notice'),
           ),
           // iOS لا يعرف القنوات — الأولوية والصوت يُضبطان لكل إشعار.
           iOS: const DarwinNotificationDetails(
@@ -208,6 +217,15 @@ class PushService {
     final id = m.data['trip_id'];
     if (id != null) return id.hashCode & 0x7fffffff;
     return DateTime.now().millisecondsSinceEpoch & 0x7fffffff;
+  }
+
+  /// قناة أندرويد حسب نوع الحمولة — الإدارة لا تُخلط مع حالة الرحلة.
+  static AndroidNotificationChannel _channelFor(Map<String, dynamic> data) {
+    final type = data['type']?.toString();
+    if (type == 'admin_notice' || type == 'broadcast') {
+      return _noticeChannel;
+    }
+    return _statusChannel;
   }
 
   Future<void> _syncToken() async {
@@ -288,6 +306,9 @@ class PushService {
             channelDescription: _statusChannel.description,
             importance: Importance.high,
             priority: Priority.high,
+            icon: '@drawable/ic_stat_zanbour',
+            playSound: true,
+            sound: const RawResourceAndroidNotificationSound('notice'),
           ),
           // iOS لا يعرف القنوات — الأولوية والصوت يُضبطان لكل إشعار.
           iOS: const DarwinNotificationDetails(
@@ -323,7 +344,17 @@ class PushService {
 
     try {
       final s = await FirebaseMessaging.instance.getNotificationSettings();
-      granted = s.authorizationStatus == AuthorizationStatus.authorized;
+      granted = s.authorizationStatus == AuthorizationStatus.authorized ||
+          s.authorizationStatus == AuthorizationStatus.provisional;
+      // على أندرويد ١٣+ `getNotificationSettings` قد يبقى «مفوضاً»
+      // بينما POST_NOTIFICATIONS مرفوض — نؤكّد من الإشعارات المحلية.
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final androidGranted = await _local
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.areNotificationsEnabled();
+        if (androidGranted != null) granted = androidGranted;
+      }
     } catch (e) {
       error = 'تعذّر قراءة الإذن: $e';
     }

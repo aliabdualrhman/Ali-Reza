@@ -118,7 +118,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       }
 
       if (outcome == SignUpOutcome.needsEmailConfirmation) {
-        context.pushReplacement('/verify-email', extra: _email.text.trim());
+        context.pushReplacement('/verify-email', extra: Validators.normalizeEmail(_email.text));
       }
       // الحالة الأخرى: الجلسة نشطة، والموجّه ينقل تلقائياً
     } catch (e) {

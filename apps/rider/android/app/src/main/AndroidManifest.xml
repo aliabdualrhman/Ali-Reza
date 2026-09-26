@@ -20,6 +20,9 @@
          فما فوق — وهو أغلب أجهزة سوقنا. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- اهتزاز قنوات الإشعار (trip_status_v2 / admin_notices). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- الكاميرا للصورة الحية. image_picker يفتح تطبيق الكاميرا بنيّة
          نظامية فلا يحتاج الإذن تقنياً، لكن بعض أجهزة شاومي تطلبه. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -76,6 +79,19 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- FCM والتطبيق في الخلفية/مغلقاً: يعرض النظام الإشعار بنفسه
+             من حمولة `notification`. بلا قناة افتراضية تطابق ما ينشئه
+             PushService وما يرسله notify-rider، أندرويد ٨+ يوجّه إلى
+             قناة «Miscellaneous» بلا صوتنا — أو يبتلع الإشعار على بعض
+             الأجهزة. يجب أن يطابق `trip_status_v2` في push_service.dart
+             وbackend/.../notify-rider. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="trip_status_v2" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_zanbour" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:zanbour_core/zanbour_core.dart';
 import '../../core/push_service.dart';
 
 /// عميل Supabase — نقطة وصول واحدة بدل استدعاء المفرد في كل ملف.
@@ -138,11 +139,11 @@ class AuthRepository {
     await _assertNoConflicts(
       fullName: fullName,
       phone: phoneE164,
-      email: email,
+      email: Validators.normalizeEmail(email),
     );
 
     final res = await _sb.auth.signUp(
-      email: email.trim(),
+      email: Validators.normalizeEmail(email),
       password: password,
       data: {
         'role': 'driver',
@@ -195,7 +196,7 @@ class AuthRepository {
     // البريد مؤكَّد فعلاً — وفشلُه يعني أن التأكيد مطلوب حقاً.
     try {
       final signedIn = await _sb.auth.signInWithPassword(
-        email: email.trim(),
+        email: Validators.normalizeEmail(email),
         password: password,
       );
       if (signedIn.session != null) return SignUpOutcome.signedIn;
@@ -214,7 +215,7 @@ class AuthRepository {
     required String identifier,
     required String password,
   }) async {
-    final id = identifier.trim();
+    final id = Validators.normalizeEmail(identifier);
     final email = await _resolveLoginEmail(id);
     final res = await _sb.auth.signInWithPassword(
       email: email,
@@ -298,10 +299,10 @@ class AuthRepository {
   }
 
   Future<void> resetPassword(String email) =>
-      _sb.auth.resetPasswordForEmail(email.trim());
+      _sb.auth.resetPasswordForEmail(Validators.normalizeEmail(email));
 
   Future<void> resendConfirmation(String email) =>
-      _sb.auth.resend(type: OtpType.signup, email: email.trim());
+      _sb.auth.resend(type: OtpType.signup, email: Validators.normalizeEmail(email));
 
   /// تأكيد البريد برمز مكوّن من ٦ أرقام.
   ///
@@ -316,7 +317,7 @@ class AuthRepository {
   }) async {
     await _sb.auth.verifyOTP(
       type: OtpType.signup,
-      email: email.trim(),
+      email: Validators.normalizeEmail(email),
       token: token.trim(),
     );
   }
@@ -415,6 +416,24 @@ final authNoticeProvider =
 
 final justSignedUpProvider =
     NotifierProvider<JustSignedUp, bool>(JustSignedUp.new);
+
+/// تجاوز مؤقت لبوابة الهاتف بعد نجاح الرمز مباشرة.
+///
+/// `invalidate(verificationProvider)` لا يمحو القيمة القديمة فوراً؛
+/// فيعيد الموجّه السائق إلى `/verify-phone` رغم نجاح التوثيق.
+/// تُرفع هنا قبل الانتقال وتُعاد للجلسة عند تغيّرها.
+class PhoneJustVerified extends Notifier<bool> {
+  @override
+  bool build() {
+    ref.watch(sessionProvider);
+    return false;
+  }
+
+  void set(bool value) => state = value;
+}
+
+final phoneJustVerifiedProvider =
+    NotifierProvider<PhoneJustVerified, bool>(PhoneJustVerified.new);
 
 /// يفحص نوع الحساب في **كل جلسة** لا عند الدخول وحده.
 ///

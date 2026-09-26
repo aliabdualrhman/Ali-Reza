@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  أيقونة شريط الحالة للإشعارات.
+  أندرويد يتوقع شكلاً أبيض شفافاً — الأيقونة الملوّنة (ic_launcher)
+  تظهر نقطة بيضاء فارغة أو تفشل على بعض الأجهزة.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2C9.24,2 7,4.24 7,7c0,1.5 0.66,2.85 1.7,3.78C6.5,11.5 5,13.6 5,16v1h14v-1c0,-2.4 -1.5,-4.5 -3.7,-5.22C16.34,9.85 17,8.5 17,7c0,-2.76 -2.24,-5 -5,-5zM9,7c0,-1.66 1.34,-3 3,-3s3,1.34 3,3 -1.34,3 -3,3 -3,-1.34 -3,-3zM7,15c0.55,-1.72 2.14,-3 4.2,-3h1.6c2.06,0 3.65,1.28 4.2,3H7z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8.5,19h7v2h-7z" />
+</vector>

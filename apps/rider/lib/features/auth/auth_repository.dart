@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:zanbour_core/zanbour_core.dart';
 import '../../core/push_service.dart';
 
 /// عميل Supabase — نقطة وصول واحدة بدل استدعاء المفرد في كل ملف.
@@ -135,11 +136,11 @@ class AuthRepository {
     await _assertNoConflicts(
       fullName: fullName,
       phone: phoneE164,
-      email: email,
+      email: Validators.normalizeEmail(email),
     );
 
     final res = await _sb.auth.signUp(
-      email: email.trim(),
+      email: Validators.normalizeEmail(email),
       password: password,
       data: {
         'role': role,
@@ -187,7 +188,7 @@ class AuthRepository {
     // البريد مؤكَّد فعلاً — وفشلُه يعني أن التأكيد مطلوب حقاً.
     try {
       final signedIn = await _sb.auth.signInWithPassword(
-        email: email.trim(),
+        email: Validators.normalizeEmail(email),
         password: password,
       );
       if (signedIn.session != null) return SignUpOutcome.signedIn;
@@ -201,12 +202,48 @@ class AuthRepository {
   // ---------------------------------------------------------------------------
   // الدخول والخروج
   // ---------------------------------------------------------------------------
-  Future<void> signIn({required String email, required String password}) async {
+  /// دخول بالبريد أو برقم الهاتف المسجَّل عند إنشاء الحساب.
+  ///
+  /// **نفس باب السائق حرفاً بحرف.** كان الراكب يدخل بالبريد وحده بينما
+  /// السائق يدخل بالاثنين — وأكثر مستخدمينا يحفظ رقمه ولا يحفظ بريداً
+  /// أنشأه مرةً واحدة قبل شهور.
+  ///
+  /// GoTrue يقبل البريد فقط؛ إن كُتب رقمٌ نحلّه إلى البريد عبر
+  /// `resolve_login_email` (0118) ثم ندخل بنفس كلمة المرور. والدالة
+  /// لا تعرف الأدوار، فحارس `assertRole` أدناه يبقى هو الفاصل.
+  Future<void> signIn({
+    required String identifier,
+    required String password,
+  }) async {
+    final id = Validators.normalizeEmail(identifier);
+    final email = await _resolveLoginEmail(id);
     final res = await _sb.auth.signInWithPassword(
-      email: email.trim(),
+      email: email,
       password: password,
     );
     await assertRole(res.user?.id);
+  }
+
+  Future<String> _resolveLoginEmail(String identifier) async {
+    // بريد مباشر — لا حاجة لنداء قاعدة.
+    if (identifier.contains('@')) return identifier;
+
+    try {
+      final v = await _sb.rpc(
+        'resolve_login_email',
+        params: {'p_identifier': identifier},
+      );
+      final email = (v is String ? v : '$v').trim();
+      if (email.isNotEmpty && email != 'null') return email;
+    } on AuthException {
+      rethrow;
+    } catch (_) {
+      // دالة غير مُرحَّلة أو شبكة — نُظهر رسالة واضحة بدل خطأ غامض.
+      throw AuthException(
+        'تعذّر التحقق من رقم الهاتف. جرّب البريد أو أعد المحاولة.',
+      );
+    }
+    throw AuthException('لا يوجد حساب بهذا الرقم أو البريد');
   }
 
   /// **الحارس الذي كان ناقصاً.**
@@ -262,10 +299,10 @@ class AuthRepository {
   }
 
   Future<void> resetPassword(String email) =>
-      _sb.auth.resetPasswordForEmail(email.trim());
+      _sb.auth.resetPasswordForEmail(Validators.normalizeEmail(email));
 
   Future<void> resendConfirmation(String email) =>
-      _sb.auth.resend(type: OtpType.signup, email: email.trim());
+      _sb.auth.resend(type: OtpType.signup, email: Validators.normalizeEmail(email));
 
   /// تأكيد البريد برمز مكوّن من ٦ أرقام.
   ///
@@ -280,7 +317,7 @@ class AuthRepository {
   }) async {
     await _sb.auth.verifyOTP(
       type: OtpType.signup,
-      email: email.trim(),
+      email: Validators.normalizeEmail(email),
       token: token.trim(),
     );
   }

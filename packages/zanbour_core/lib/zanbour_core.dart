@@ -10,6 +10,7 @@ export 'src/delivery_payment.dart';
 export 'src/errors.dart';
 export 'src/forgot_password_flow.dart';
 export 'src/geo_service.dart';
+export 'src/guide_button.dart';
 export 'src/heard_from_field.dart';
 export 'src/invite_screen.dart';
 export 'src/legal_screen.dart';

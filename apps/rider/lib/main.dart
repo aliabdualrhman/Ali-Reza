@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zanbour_core/zanbour_core.dart';
 
 import 'app_router.dart';
+import 'core/delivery_prompt.dart';
 import 'core/push_service.dart';
 import 'core/trip_notifier.dart';
 import 'features/auth/auth_repository.dart';
@@ -35,6 +36,11 @@ Future<void> main() async {
       // publishableKey لا anonKey: Supabase غيّرت صيغة مفاتيحها
       // (sb_publishable_...) وهجرت التسمية القديمة.
       await Supabase.initialize(url: url, publishableKey: key);
+
+      // **مفتاح الخرائط من اللوحة لا من البناء** (0119). لا ننتظره:
+      // لو تأخّرت الشبكة يقلع التطبيق بمفتاح البناء، وتصل القيمة
+      // الجديدة عند أوّل شاشةٍ تقرأ الإعدادات.
+      await loadMapConfig(Supabase.instance.client);
     }
   } catch (e) {
     final msg = e.toString();
@@ -72,6 +78,9 @@ class _ZanbourAppState extends ConsumerState<ZanbourApp> {
     // محلياً عند تبدّل الحالة — فتعمل على جهاز لا يولّد رمز FCM أصلاً.
     // نبدأها قبل فايربيز: تهيئة الأخيرة قد تفشل كلياً على تلك الأجهزة.
     ref.read(tripNotifierProvider).listen();
+    // **وصول المندوب يفتح صفحة الطلب من نفسه.** الاتفاق على طريقة
+    // الدفع يحتاج اختيار الطرفين، والمندوب واقفٌ ينتظر.
+    ref.read(deliveryPaymentPromptProvider).listen();
     try {
       final push = PushService(ref.read(supabaseProvider));
       await push.initialize(

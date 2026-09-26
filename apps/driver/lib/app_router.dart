@@ -91,9 +91,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (ref.read(justSignedUpProvider) && path != '/verify-phone') {
         final v = ref.read(verificationProvider).value;
         if (v != null && v.isNotEmpty) {
-          final needsPhone = v['mode'] == 'phone' &&
-              v['otp_enabled'] == true &&
-              v['phone'] != true;
+          final needsPhone = !ref.read(phoneJustVerifiedProvider) &&
+              phoneGateOpen(v);
           if (needsPhone) return '/verify-phone';
           // وضعٌ غير الهاتف، أو رقمٌ موثَّق أصلاً: تُطوى الراية.
           ref.read(justSignedUpProvider.notifier).set(false);
@@ -127,10 +126,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         //
         // وفي وضع البريد لا شيء هنا: Supabase لا يُدخل بريداً غير مؤكَّد.
         final v = ref.read(verificationProvider).value;
-        final needsPhone = v != null &&
-            v['mode'] == 'phone' &&
-            v['otp_enabled'] == true &&
-            v['phone'] != true;
+        final justVerified = ref.read(phoneJustVerifiedProvider);
+        final needsPhone =
+            !justVerified && v != null && phoneGateOpen(v);
+
+        // **خروج من شاشة الرمز بعد النجاح.** كانت في `preApproval`
+        // بلا شرط مغادرة؛ فإن أعاد الحارس السائق إليها بعد `go`
+        // (قيمة توثيق قديمة) بقي عالقاً ولو صار `phone: true` لاحقاً.
+        if (path == '/verify-phone' &&
+            (justVerified ||
+                (v != null && v.isNotEmpty && !phoneGateOpen(v)))) {
+          if (justVerified &&
+              v != null &&
+              v.isNotEmpty &&
+              !phoneGateOpen(v)) {
+            ref.read(phoneJustVerifiedProvider.notifier).set(false);
+          }
+          return _afterAuth(ref);
+        }
+
         if (needsPhone && path != '/verify-phone') return '/verify-phone';
 
         return preApproval.contains(path) ? null : _afterAuth(ref);
@@ -229,14 +243,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         // التوثيق ولا يتحرّك شيء. وإبطالُ المزوّد قبل الانتقال ضروري:
         // بدونه يقرأ الحاجزُ حالةً قديمة فيعيده إلى الشاشة نفسها.
         builder: (ctx, _) => VerifyPhoneScreen(
-          onDone: () {
+          onDone: () async {
             // **الوجهة قبل طيّ الراية.** `_afterAuth` يعتمد على
             // `justSignedUp` لإرسال التسجيل الجديد إلى الوثائق لا
             // الانتظار. طيّها أولاً كان يُسقطه على `/pending`.
-            ref.invalidate(verificationProvider);
+            //
+            // **`phoneJustVerified` قبل `go`.** وإلا يعيد الحارس المسار
+            // إلى `/verify-phone` لأن `.value` ما زال `phone: false`
+            // أثناء إعادة جلب `verificationProvider`.
+            //
+            // **وطيّ `justSignedUp` بعد الانتقال.** إن طُويت أثناء
+            // الانتظار وأعاد `refreshListenable` التقييم، يخرج الحارس
+            // من شاشة الرمز إلى `/pending` بدل الوثائق.
             final next = _afterAuth(ref);
-            ref.read(justSignedUpProvider.notifier).set(false);
+            ref.read(phoneJustVerifiedProvider.notifier).set(true);
+            ref.invalidate(verificationProvider);
+            try {
+              await ref.read(verificationProvider.future);
+            } catch (_) {}
+            if (!ctx.mounted) return;
             ctx.go(next);
+            ref.read(justSignedUpProvider.notifier).set(false);
           },
         ),
       ),
@@ -303,6 +330,8 @@ class _RouterRefresh extends ChangeNotifier {
     // الشاشة كما ضاعت من قبل.
     _subs.add(ref.listen(verificationProvider, (_, _) => notifyListeners()));
     _subs.add(ref.listen(justSignedUpProvider, (_, _) => notifyListeners()));
+    _subs.add(
+        ref.listen(phoneJustVerifiedProvider, (_, _) => notifyListeners()));
 
     _subs.add(ref.listen(driverRecordProvider, (_, _) => notifyListeners()));
     // **والوثائق أيضاً.** `_afterAuth` تقرؤها، ولو لم نستمع لها بقي

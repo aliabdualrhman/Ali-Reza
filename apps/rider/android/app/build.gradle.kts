@@ -22,6 +22,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
+    // مساحة أسماء كوتلن/جافا — مستقلة عن معرّف التطبيق على المتجر.
     namespace = "com.zanbour.rider"
     // 37 صراحةً لا flutter.compileSdkVersion (الذي يعطي 36).
     // بعض الحزم التي نستعملها بُنيت على منصة 37، وGradle يرفض بناء
@@ -46,7 +47,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // **حزمة Google Play الثابتة** — لا تُغيَّر بعد النشر.
+        // يجب أن تطابق تطبيق Firebase «المتجر»: com.zanbour.rider
+        // وملف google-services.json في هذا المجلد.
         applicationId = "com.zanbour.rider"
 
         // **نسخة اختبار تتعايش مع نسخة المتجر.**

@@ -15,10 +15,9 @@
 
   ولا يظهر في التطوير إطلاقاً: نسخ التصحيح لا تُقلَّم أصلاً.
 
-  **وأيقونة الإشعار كذلك** (`@mipmap/ic_launcher`): تُطلب بالاسم من
-  `AndroidInitializationSettings`، والبيان يشير إلى `zanbour_icon` لا
-  إليها — فكانت تُرمى، وتهيئة الإشعارات تفشل في كل نسخة إصدار:
-  `invalid_icon: @mipmap/ic_launcher could not be found`.
+  **وأيقونة الإشعار كذلك** (`@drawable/ic_stat_zanbour`): تُطلب بالاسم من
+  `AndroidInitializationSettings`، فلا يراها المقلّم من دارت — فكانت تُرمى
+  إن استُعمل اسم قديم مثل `ic_launcher` فقط من البيان.
 -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@raw/notice,@mipmap/ic_launcher" />
+    tools:keep="@raw/notice,@mipmap/ic_launcher,@drawable/ic_stat_zanbour" />

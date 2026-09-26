@@ -189,6 +189,7 @@ App settings ← **Environment variables** ← مجموعة باسم **`zanbour`
 | خريطة فارغة بعد التثبيت | `GEOAPIFY_KEY` ناقص أو خاطئ في مجموعة zanbour |
 | لا إشعارات | APNs غير مرفوع إلى Firebase — التطبيق يعمل لكن الإشعار صامت |
 | رفض Apple «alpha channel» | أيقوناتنا RGB بلا شفافية — إن استبدلت الأيقونة أعد توليد `flutter_launcher_icons` |
+| `FirebaseFirestoreInternal.zip` / `downloadError("The request timed out.")` | مهلة تنزيل ثنائيات Firebase عبر SPM. المشروع مضبوط على CocoaPods (`enable-swift-package-manager: false` + `flutter config --no-enable-swift-package-manager` في `codemagic.yaml`). ادفع التعديل وأعد البناء. |
 
 ---
 

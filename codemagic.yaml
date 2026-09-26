@@ -75,9 +75,12 @@ workflows:
           grep -q '^SUPABASE_URL=http' apps/rider/.env || { echo "RIDER_ENV_B64 لا يحتوي SUPABASE_URL صالحاً"; exit 1; }
       - name: الحزم
         script: |
+          # Flutter 3.44+ يفعّل SPM افتراضياً؛ ثنائيات Firebase عبر SPM
+          # تنتهي بمهلة على شبكة Codemagic. نفرض CocoaPods صراحةً.
+          flutter config --no-enable-swift-package-manager
           cd apps/rider
           flutter pub get
-          cd ios && pod install
+          cd ios && pod install --repo-update
       - name: التوقيع
         # لا تستخدم **/*.xcodeproj — مجلدات «تطبيق الراكب/السائق»
         # العربية في المستودع تُفشل التوقيع على المسار غير اللاتيني.
@@ -87,10 +90,17 @@ workflows:
           cd apps/rider
           # رقم البناء من عدّاد Codemagic: يزيد مع كل بناء، وآبل ترفض
           # رفع رقمٍ استُعمل من قبل.
-          flutter build ipa --release \
-            --build-number=$BUILD_NUMBER \
-            --dart-define=GEOAPIFY_KEY=$GEOAPIFY_KEY \
-            --export-options-plist=/Users/builder/export_options.plist
+          # إعادة محاولة عند مهلة شبكة نادرة أثناء ربط Xcode.
+          for attempt in 1 2 3; do
+            flutter build ipa --release \
+              --build-number=$BUILD_NUMBER \
+              --dart-define=GEOAPIFY_KEY=$GEOAPIFY_KEY \
+              --export-options-plist=/Users/builder/export_options.plist \
+              && break
+            echo "فشل البناء (محاولة $attempt) — إعادة بعد 45 ثانية..."
+            sleep 45
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+          done
     artifacts:
       - apps/rider/build/ios/ipa/*.ipa
     publishing:
@@ -122,18 +132,28 @@ workflows:
           grep -q '^SUPABASE_URL=http' apps/driver/.env || { echo "DRIVER_ENV_B64 لا يحتوي SUPABASE_URL صالحاً"; exit 1; }
       - name: الحزم
         script: |
+          # Flutter 3.44+ يفعّل SPM افتراضياً؛ ثنائيات Firebase عبر SPM
+          # تنتهي بمهلة على شبكة Codemagic. نفرض CocoaPods صراحةً.
+          flutter config --no-enable-swift-package-manager
           cd apps/driver
           flutter pub get
-          cd ios && pod install
+          cd ios && pod install --repo-update
       - name: التوقيع
         script: xcode-project use-profiles --project apps/driver/ios/Runner.xcodeproj
       - name: البناء
         script: |
           cd apps/driver
-          flutter build ipa --release \
-            --build-number=$BUILD_NUMBER \
-            --dart-define=GEOAPIFY_KEY=$GEOAPIFY_KEY \
-            --export-options-plist=/Users/builder/export_options.plist
+          # إعادة محاولة عند مهلة شبكة نادرة أثناء ربط Xcode.
+          for attempt in 1 2 3; do
+            flutter build ipa --release \
+              --build-number=$BUILD_NUMBER \
+              --dart-define=GEOAPIFY_KEY=$GEOAPIFY_KEY \
+              --export-options-plist=/Users/builder/export_options.plist \
+              && break
+            echo "فشل البناء (محاولة $attempt) — إعادة بعد 45 ثانية..."
+            sleep 45
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+          done
     artifacts:
       - apps/driver/build/ios/ipa/*.ipa
     publishing:
