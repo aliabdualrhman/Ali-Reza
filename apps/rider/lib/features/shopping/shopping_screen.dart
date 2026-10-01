@@ -43,6 +43,15 @@ class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
 
   final _coupon = TextEditingController();
 
+  /// الكوبون كما أقرّته القاعدة: النسبة والخصم والأجرة بعده.
+  ///
+  /// **ما يُعرض هو ما يُخصم.** `request_shopping` تنادي `check_coupon`
+  /// على أجرة التوصيل نفسها التي تُعيدها `estimate_shopping` (بعد الحدّ
+  /// الأدنى)، فالرقم هنا والرقم عند الإرسال يخرجان من معادلةٍ واحدة.
+  Map<String, dynamic>? _applied;
+  bool _couponBusy = false;
+  String? _couponError;
+
   /// أجرة التوصيل كما تحسبها القاعدة. تُقدَّر فور اكتمال النقطتين.
   ///
   /// **الرقم قبل الطلب لا بعده.** الراكب يقدّر ثمن البضاعة بنفسه، أما
@@ -88,6 +97,7 @@ class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
         _dropAddress = picked.address;
       }
       _fare = null;
+      _couponError = null;
     });
 
     _estimate();
@@ -121,6 +131,11 @@ class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
         return;
       }
       setState(() => _fare = m['total'] as num?);
+
+      // **الخصم نسبةٌ من الأجرة، والأجرة تغيّرت.** فالكوبون المُقرّ يُعاد
+      // حسابه عليها بلا أن يُطلب من الراكب ضغط «تطبيق» ثانية — وإلا بقي
+      // على الشاشة خصمٌ محسوبٌ على مسارٍ لم يعد موجوداً.
+      if (_applied != null) _applyCoupon();
     } on GeoException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (e) {
@@ -138,6 +153,21 @@ class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
 
   Future<void> _submit() async {
     if (!_ready) return;
+    // اهتزازٌ لمسيٌّ خفيف: يؤكّد الضغطة بلا نظرٍ إلى الشاشة — والسائق
+    // على المقود. بلا صلاحية (انظر `RatingView.celebrate`).
+    HapticFeedback.mediumImpact();
+
+    // **كودٌ مكتوبٌ لم يُطبَّق لا يُرسَل صامتاً ولا يُهمَل صامتاً.** يُطبَّق
+    // أولاً فيرى الراكب خصمه وأجرته بعده، ثم يضغط «اطلب» وهو يعرف ما
+    // سيدفع. وإن كان الكود خاطئاً عرف قبل أن يُرسَل طلبٌ بلا خصمه.
+    //
+    // وبلا أجرةٍ محسوبة (ما زالت تُحسب أو تعذّرت) لا خصمَ يُعرض، فيُمرَّر
+    // الكود كما كُتب والقاعدة تفحصه — لا زرٌّ يُضغط فلا يحدث شيء.
+    if (_applied == null && _coupon.text.trim().isNotEmpty && _fare != null) {
+      await _applyCoupon();
+      return;
+    }
+
     // الضيف يكتب قائمته ويرى الأجرة، ويُسأل التسجيل عند الإرسال وحده.
     if (!await requireAccountHere(context, ref,
         reason: 'أنشئ حساباً مجانياً ليصلك طلبك.')) {
@@ -171,8 +201,8 @@ class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
             items: items,
             goodsEstimate: num.parse(_total.text.trim()),
             note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-            couponCode:
-                _coupon.text.trim().isEmpty ? null : _coupon.text.trim(),
+            couponCode: _applied?['code'] as String? ??
+                (_coupon.text.trim().isEmpty ? null : _coupon.text.trim()),
             shopName:
                 _shopName.text.trim().isEmpty ? null : _shopName.text.trim(),
           );
@@ -187,6 +217,137 @@ class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// يسأل القاعدة عن الكوبون على أجرة التوصيل وحدها.
+  Future<void> _applyCoupon() async {
+    final code = _coupon.text.trim();
+    final fare = _fare;
+    if (code.isEmpty || fare == null) return;
+    // الكوبون مربوطٌ بحسابٍ يُستعمل مرةً فيه — لا معنى له لضيف.
+    if (!await requireAccountHere(context, ref,
+        reason: 'سجّل الدخول لتستعمل رمز الخصم.')) {
+      return;
+    }
+
+    setState(() {
+      _couponBusy = true;
+      _couponError = null;
+    });
+    try {
+      final res = await ref
+          .read(supabaseProvider)
+          .rpc('check_coupon', params: {'p_code': code, 'p_fare': fare});
+      if (mounted) {
+        setState(() => _applied = Map<String, dynamic>.from(res as Map));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _applied = null;
+          _couponError = AppError.message(e);
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _couponBusy = false);
+    }
+  }
+
+  /// صندوق الكوبون — بعد الأجرة وقبل زرّ الطلب، كما في التاكسي.
+  ///
+  /// **لا يظهر قبل الأجرة.** الخصم نسبةٌ منها، فلا رقم يُعرض قبلها.
+  Widget _couponBox(ThemeData theme) {
+    final applied = _applied;
+
+    if (applied != null) {
+      final pct = (applied['discount_pct'] as num).round();
+      final disc = (applied['discount_iqd'] as num).round();
+      final after = (applied['fare_after'] as num).round();
+
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.local_offer, color: theme.colorScheme.onPrimaryContainer),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('خصم $pct٪ — وفّرت $disc دينار',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text('التوصيل $after دينار بدل ${_fare!.round()}',
+                      style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: 2),
+                  Text('يُخصم من أجرة التوصيل — لا من ثمن البضاعة',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer
+                              .withValues(alpha: 0.8))),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () => setState(() {
+                _applied = null;
+                _coupon.clear();
+                _couponError = null;
+              }),
+              child: const Text('إزالة'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _coupon,
+                enabled: !_couponBusy,
+                textCapitalization: TextCapitalization.characters,
+                textDirection: TextDirection.ltr,
+                decoration: const InputDecoration(
+                  labelText: 'كود خصم (اختياري)',
+                  prefixIcon: Icon(Icons.local_offer_outlined),
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => _applyCoupon(),
+              ),
+            ),
+            const SizedBox(width: 10),
+            FilledButton(
+              onPressed: _couponBusy ? null : _applyCoupon,
+              style: FilledButton.styleFrom(minimumSize: const Size(88, 48)),
+              child: _couponBusy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2.2))
+                  : const Text('تطبيق'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _couponError ?? 'يُخصم من أجرة التوصيل — لا من ثمن البضاعة',
+          style: _couponError != null
+              ? TextStyle(color: theme.colorScheme.error)
+              : theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
   }
 
   @override
@@ -314,21 +475,6 @@ class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
             onChanged: (_) => setState(() {}),
           ),
 
-          // **الكوبون على التوصيل وحده.** ثمن البضاعة مال البقّال لا
-          // مالنا — دفعه السائق من جيبه، فخصمٌ عليه يخرج نقداً من
-          // خزينتنا. والقاعدة تفرض ذلك ولا تكتفي بهذا السطر.
-          const SizedBox(height: 14),
-          TextField(
-            controller: _coupon,
-            textCapitalization: TextCapitalization.characters,
-            textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(
-              labelText: 'كود خصم (اختياري)',
-              helperText: 'يُخصم من أجرة التوصيل — لا من ثمن البضاعة',
-              border: OutlineInputBorder(),
-            ),
-          ),
-
           const SizedBox(height: 14),
           TextField(
             controller: _note,
@@ -379,9 +525,24 @@ class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
                             style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 2),
-                        Text('${_fare!.round()} دينار',
-                            style: theme.textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        // **السعر بعد الخصم هو الرقم الكبير.** والأصليّ
+                        // مشطوبٌ بجانبه: يرى الراكب ما وفّر بلا حساب.
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          children: [
+                            Text(
+                                '${((_applied?['fare_after'] as num?) ?? _fare!).round()} دينار',
+                                style: theme.textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.bold)),
+                            if (_applied != null)
+                              Text('${_fare!.round()}',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    decoration: TextDecoration.lineThrough,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  )),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -416,6 +577,12 @@ class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ],
+
+            // **الكوبون على التوصيل وحده.** ثمن البضاعة مال البقّال لا
+            // مالنا — دفعه السائق من جيبه، فخصمٌ عليه يخرج نقداً من
+            // خزينتنا. والقاعدة تفرض ذلك ولا تكتفي بهذا السطر.
+            const SizedBox(height: 16),
+            _couponBox(theme),
           ],
 
           const SizedBox(height: 24),

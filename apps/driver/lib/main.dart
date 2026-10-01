@@ -11,6 +11,10 @@ import 'app_router.dart';
 import 'core/push_service.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/driver/driver_repository.dart';
+import 'features/driver/earnings_card.dart' show earningsProvider;
+import 'features/driver/incentives_screen.dart' show myIncentivesProvider;
+import 'features/driver/store_dues_screen.dart'
+    show storeDuesProvider, orderBlocksProvider;
 import 'features/driver/location_tracker.dart';
 
 /// سبب فشل الإقلاع إن وُجد — يُعرض للمستخدم بدل شاشة سوداء صامتة.
@@ -40,7 +44,24 @@ Future<void> main() async {
       // **مفتاح الخرائط من اللوحة لا من البناء** (0119). لا ننتظره:
       // لو تأخّرت الشبكة يقلع التطبيق بمفتاح البناء، وتصل القيمة
       // الجديدة عند أوّل شاشةٍ تقرأ الإعدادات.
-      await loadMapConfig(Supabase.instance.client);
+      // **مفتاح الخرائط من .env قبل اللوحة.** كان لا يُقرأ إلا من
+      // `--dart-define`، فمن بنى بلا الراية خرج بخرائط تنتظر اللوحة.
+      // والقيمة في .env أصلاً؛ فتُتبنّى هنا، ثم تعلوها قيمةُ اللوحة
+      // إن وصلت — فيبقى تغيير المفتاح من اللوحة بلا بناء.
+      MapEndpoints.adopt(key: dotenv.env['GEOAPIFY_KEY']);
+      // **المسجَّل لا ينتظر الشبكة قبل أول شاشة.** كان الإقلاع يقف هنا
+      // على ردّ الخادم — حتى أربع ثوانٍ على شبكةٍ بطيئة — في كلّ فتحة.
+      // ومفتاح الخرائط في يده من .env، ومفتاح البريد لا يلزمه إلا في
+      // شاشة الدخول. فيصل الردّ وهو يرى رئيسيته.
+      //
+      // **ومن لا جلسة له ينتظر — قليلاً.** شاشته الأولى الدخول، وهي تقرأ
+      // مفتاح البريد لتعرف أتطلب الرقم وحده أم البريد معه.
+      final signedIn = Supabase.instance.client.auth.currentSession != null;
+      final boot = loadMapConfig(
+        Supabase.instance.client,
+        timeout: Duration(seconds: signedIn ? 4 : 2),
+      );
+      if (!signedIn) await boot;
     }
   } catch (e) {
     final msg = e.toString();
@@ -190,9 +211,18 @@ class _ZanbourAppState extends ConsumerState<ZanbourApp> {
       _watchOffers(push);
       await push.initialize(
         onOpened: (data) {
+          debugPrint('فُتح إشعار: $data');
+          // **الإعلان ليس عرضاً.** كلّ إشعارٍ كان يُعامَل كعرض رحلة: يُبحث
+          // عن عرضٍ معلّق فلا يوجد، فيُقال للسائق «انتهت مهلة هذا الطلب
+          // وانتقل إلى سائق آخر» — عن إعلان حافزٍ لم يكن طلباً أصلاً.
+          // والنوع في بيانات الإشعار نفسه (`admin_notice` من
+          // notify-broadcast، و`trip_offer` من notify-driver).
+          if (data['type'] == 'admin_notice') {
+            _openNotice(data);
+            return;
+          }
           // الإشعار يحمل معرّف الرحلة؛ نترك الموجّه يقرر الوجهة من
           // حالة السائق بدل التنقّل الأعمى — قد يكون العرض انتهى.
-          debugPrint('فُتح إشعار: $data');
           _refreshAfterNotification();
         },
       );
@@ -219,6 +249,29 @@ class _ZanbourAppState extends ConsumerState<ZanbourApp> {
   /// مباشراً بـ HTTP لا ينتظر عودة المقبس.
   ///
   /// ولا نزال لا ننقل يدوياً: نحدّث الحالة فقط، والموجّه يقرأها ويقرر.
+  /// إعلانٌ من الإدارة فُتح: إن كان حافزاً فُتحت «الحوافز»، وإلا فلا شيء.
+  ///
+  /// **يُعرف الحافز من عنوانه.** `my_notifications` تعيد العنوان لا النوع،
+  /// وإعلانات الحوافز كلّها تبدأ بـ«حافز» (0108 و0110: «حافز جديد: …»
+  /// و«حافز خاصٌّ لك: …»). ولا تُحمَّل الشاشة إن فشل شيء: أسوأ ما يحدث
+  /// أن يبقى السائق حيث هو — لا رسالةٌ كاذبة.
+  Future<void> _openNotice(Map<String, dynamic> data) async {
+    final id = '${data['notification_id'] ?? ''}';
+    if (id.isEmpty || ref.read(sessionProvider) == null) return;
+    try {
+      final rows = await ref
+          .read(supabaseProvider)
+          .rpc('my_notifications', params: {'p_limit': 50}) as List;
+      final n = rows.cast<Map>().where((r) => '${r['id']}' == id).firstOrNull;
+      if (n != null && '${n['title']}'.trim().startsWith('حافز')) {
+        ref.invalidate(myIncentivesProvider);
+        ref.read(routerProvider).push('/incentives');
+      }
+    } catch (e) {
+      debugPrint('تعذّر فتح الإعلان: $e');
+    }
+  }
+
   Future<void> _refreshAfterNotification() async {
     try {
       ref.invalidate(pendingOffersProvider);
@@ -257,6 +310,28 @@ class _ZanbourAppState extends ConsumerState<ZanbourApp> {
     // **لا جلسة = لا تتبّع.** كان المتتبّع يبقى يعمل بعد الخروج، فيرسل
     // الموقع كل خمس ثوانٍ بلا حساب ويُرفض كل مرة (42501) — بطاريةٌ
     // تُستنزف، وإشعار «متصل» دائمٌ لسائقٍ خرج.
+    // **رحلةٌ اكتملت ⇐ أرقام اليوم والحافز تُعاد من القاعدة.** المزوّدان
+    // يُجلبان مرّةً ويبقيان في الذاكرة، فكانت حلقة الحافز وأرباح اليوم
+    // تتجمّد على قيمتها الأولى — والقاعدة تعدّ صحيحاً. و`trips_completed`
+    // يزيد في `complete_trip` لكلّ رحلة، ويصل ببثّ سجلّ السائق.
+    ref.listen(driverRecordProvider, (prev, next) {
+      final a = prev?.value?.tripsCompleted;
+      final b = next.value?.tripsCompleted;
+      if (a != null && b != null && a != b) {
+        ref.invalidate(myIncentivesProvider);
+        ref.invalidate(earningsProvider);
+        // طلب مندوبٍ «يُعاد الثمن بعد التسليم» ينشئ دَيناً للمتجر لحظة
+        // اكتماله — فيظهر في بطاقة الرئيسية الحمراء فوراً.
+        ref.invalidate(storeDuesProvider);
+      }
+      // **والرصيد وحده يكفي لإعادة الفحص:** شحنٌ برمزٍ يرفع الإيقاف، وعمولةٌ
+      // تُنزل الرصيد تحت الأرضية — ولا رحلة في أيٍّ منهما بالضرورة.
+      if (a != b ||
+          prev?.value?.walletBalance != next.value?.walletBalance) {
+        ref.invalidate(orderBlocksProvider);
+      }
+    });
+
     ref.listen(sessionProvider, (_, next) {
       if (next == null) {
         ref.read(locationTrackerProvider.notifier).stop();
@@ -268,8 +343,16 @@ class _ZanbourAppState extends ConsumerState<ZanbourApp> {
       final d = next.value;
       if (d == null) return;
       final tracker = ref.read(locationTrackerProvider.notifier);
+      // **بلا await ولا catch كان الاستثناء يسقط بعد الدخول.** سائقٌ
+      // حالته `online` في القاعدة (حساب مراجعة أو جلسة سابقة) يطلق
+      // التتبّع فور وصول السجلّ — ورفض إذن الموقع أو فشل GPS على
+      // iPad المراجعة يرمي GeoException بلا ملتقط، فيبدو التطبيق
+      // معطوباً بعد تسجيل الدخول (رفض آبل 2.1).
       if (d.status != DriverStatus.offline && !tracker.isRunning) {
-        tracker.start();
+        // ignore: discarded_futures
+        tracker.start().catchError((Object e) {
+          debugPrint('تعذّر بدء تتبّع الموقع تلقائياً: $e');
+        });
       }
 
       // الخدمة المغلقة من الإدارة لا تُحسب نيّةً: مفتاحها مخفيّ عنه.
@@ -283,6 +366,12 @@ class _ZanbourAppState extends ConsumerState<ZanbourApp> {
     });
 
     return MaterialApp.router(
+      // **الخلفية الحيّة خلف الشاشات كلّها من هنا.** `go_router` يبني
+      // شاشاته بلا انتقالٍ (`NoTransitionPage`)، فلا يمرّ بانتقال السمة
+      // الذي يرسمها للصفحات العادية — وُجد ذلك بتجربةٍ لا بقراءة. فتُرسم
+      // مرّةً تحت الملّاح كلّه، والشاشات شفّافةٌ فوقها.
+      builder: (context, child) =>
+          ZMeshBackground(child: child ?? const SizedBox.shrink()),
       title: 'كابتن زنبور',
       debugShowCheckedModeBanner: false,
       routerConfig: router,

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:zanbour_core/zanbour_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -237,9 +238,9 @@ class _Row extends StatelessWidget {
     final theme = Theme.of(context);
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(
+      leading: ZIconTile(
         ok ? Icons.check_circle : Icons.cancel,
-        color: ok ? theme.colorScheme.primary : theme.colorScheme.error,
+        color: ok ? null : theme.colorScheme.error,
       ),
       title: Text(label),
       subtitle: Text(detail, style: theme.textTheme.bodySmall),

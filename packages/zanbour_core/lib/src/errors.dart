@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'settings.dart';
 
 /// تحويل أخطاء Supabase وبوستغرس إلى رسائل عربية مفهومة.
 ///
@@ -32,14 +33,19 @@ class AppError {
     final m = e.message.toLowerCase();
 
     if (m.contains('invalid login credentials')) {
-      return 'البريد أو كلمة المرور غير صحيحة';
+      // الدخول صار بالرقم أولاً (0139) — فالخطأ يسمّي الرقم.
+      return AuthFlags.emailEnabled
+          ? 'الرقم أو البريد أو كلمة المرور غير صحيحة'
+          : 'رقم الهاتف أو كلمة المرور غير صحيحة';
     }
     if (m.contains('email not confirmed')) {
       return 'لم تُفعّل بريدك بعد. افتح رسالة التفعيل الواصلة إليك.';
     }
     if (m.contains('user already registered') ||
         m.contains('already been registered')) {
-      return 'هذا البريد مسجّل مسبقاً. سجّل دخولك أو استعد كلمة المرور.';
+      return AuthFlags.emailEnabled
+          ? 'هذا البريد مسجّل مسبقاً. سجّل دخولك أو استعد كلمة المرور.'
+          : 'رقم الهاتف مسجّل مسبقاً. سجّل دخولك أو استعد كلمة المرور.';
     }
     if (m.contains('password should be at least')) {
       return 'كلمة المرور قصيرة جداً';

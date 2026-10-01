@@ -4,6 +4,7 @@ import 'package:zanbour_core/zanbour_core.dart';
 
 import 'driver_repository.dart';
 import 'earnings_card.dart';
+import 'incentive_awards.dart';
 
 final myTripsProvider = FutureProvider<List<Map<String, dynamic>>>(
   (ref) => ref.watch(driverRepositoryProvider).tripHistory(),
@@ -59,8 +60,17 @@ class MyTripsScreen extends ConsumerWidget {
               itemCount: rows.length + 1,
               separatorBuilder: (_, i) =>
                   i == 0 ? const SizedBox.shrink() : const Divider(height: 1),
-              itemBuilder: (_, i) =>
-                  i == 0 ? const EarningsCard() : _TripTile(trip: rows[i - 1]),
+              // **تظهر متتابعةً** — `.rv` في المحاكي: أوّلها أوّلاً فتعرف العين
+              // من أين تبدأ.
+              itemBuilder: (_, i) => ZRise(
+                index: i,
+                child: i == 0
+                    ? const Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [EarningsCard(), IncentiveAwardsSection()],
+                      )
+                    : _TripTile(trip: rows[i - 1]),
+              ),
             );
           },
         ),
@@ -92,9 +102,10 @@ class _TripTile extends StatelessWidget {
         builder: (_) => TripDetailScreen(tripId: trip['id'] as String),
       )),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: Icon(
+      // أيقونة الحالة في مربّعٍ كهرمانيّ — والملغاة بالأحمر كما كانت.
+      leading: ZIconTile(
         done ? Icons.check_circle : Icons.cancel_outlined,
-        color: done ? theme.colorScheme.primary : theme.colorScheme.error,
+        color: done ? null : theme.colorScheme.error,
       ),
       title: Row(
         children: [

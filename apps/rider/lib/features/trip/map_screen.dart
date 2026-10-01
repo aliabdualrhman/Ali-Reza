@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,7 +28,14 @@ enum _Stage {
 }
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({super.key, this.preset});
+
+  /// وجهةٌ مختارة سلفاً من «إلى أين؟» في الرئيسية.
+  ///
+  /// **لا تتخطّى خطوة.** الراكب يؤكّد انطلاقه كالعادة، ثم يجد الخريطة
+  /// واقفةً على وجهته فيضغط «تأكيد» — المراحل نفسها، بلا بحث. فلا يُطلب
+  /// شيءٌ لم يره الراكب بعينه على الخريطة.
+  final ({double lat, double lng, String address})? preset;
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
@@ -77,6 +85,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   List<PlaceResult> _results = const [];
   Timer? _debounce;
+
+  /// الوجهة الجاهزة تُستعمل مرّةً عند أول انتقالٍ إلى الوجهة.
+  bool _presetUsed = false;
 
   @override
   void initState() {
@@ -141,19 +152,30 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   /// يحدّث نص العنوان تحت الدبوس المركزي.
+  ///
+  /// **العنوان لمرحلة الطلب لا لمرحلة الجواب.** العنوان يأتي من الشبكة بعد
+  /// ثانية أو أكثر؛ ومن أكّد انطلاقه انتقل إلى الوجهة قبل أن يصل. فكان
+  /// عنوانُ الانطلاق يُكتب في الوجهة — ويبقى فيها، لأن ما بعدها يصل وقد
+  /// صارت المرحلة «تأكيد». فرأى السائق في العرض وجهةً هي نقطة الانطلاق،
+  /// وظهرت في «إلى أين؟» نقاطُ الانطلاق بدل الوجهات (رحلة ١٠١٩١ مثلاً).
+  ///
+  /// فالمرحلة تُلتقط لحظة الطلب؛ والنقطة تتحرّك معها ما دام الراكب في
+  /// المرحلة نفسها (كما كانت)، والعنوان لا يُكتب إلا لنقطته هو.
   Future<void> _refreshCenterAddress(LatLng p) async {
+    final stage = _stage;
     final addr = await ref.read(geoServiceProvider).addressOf(p);
     if (!mounted) return;
+    final same = _stage == stage;
     setState(() {
-      if (_stage == _Stage.pickup) {
-        _pickup = p;
-        _pickupAddress = addr;
-      } else if (_stage == _Stage.dropoff) {
-        _dropoff = p;
-        _dropoffAddress = addr;
-      } else if (_stage == _Stage.dropoff2) {
-        _dropoff2 = p;
-        _dropoff2Address = addr;
+      if (stage == _Stage.pickup) {
+        if (same) _pickup = p;
+        if (_pickup == p) _pickupAddress = addr;
+      } else if (stage == _Stage.dropoff) {
+        if (same) _dropoff = p;
+        if (_dropoff == p) _dropoffAddress = addr;
+      } else if (stage == _Stage.dropoff2) {
+        if (same) _dropoff2 = p;
+        if (_dropoff2 == p) _dropoff2Address = addr;
       }
     });
   }
@@ -161,6 +183,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   /// يُستدعى بعد أن يتوقف المستخدم عن تحريك الخريطة.
   void _onMapIdle(MapCamera cam) {
     if (_stage == _Stage.confirm) return;
+    // **من حرّك الخريطة اختار مكانه بيده** — فتنبيهُ «تعذّر تحديد موقعك»
+    // لم يعد يصف شيئاً، وبقاؤه أحمرَ فوق زرّ التأكيد يوحي أن الطلب لن يمضي.
+    if (_error != null) setState(() => _error = null);
     // تأخير قصير يمنع نداء عكس-الترميز مع كل بكسل حركة. الحدّ عند
     // Geoapify خمسة طلبات في الثانية، وكل نداء يستهلك رصيداً — فالتأخير
     // يحمي الحصّة قبل أن يحمي الحدّ.
@@ -248,11 +273,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _commitCenter();
 
     if (_stage == _Stage.pickup) {
+      final preset = _presetUsed ? null : widget.preset;
       setState(() {
         _stage = _Stage.dropoff;
         _dropoff = null;
         _dropoffAddress = '';
+        if (preset != null) {
+          _presetUsed = true;
+          _dropoff = LatLng(preset.lat, preset.lng);
+          _dropoffAddress = preset.address;
+        }
       });
+      // الخريطة تقف على الوجهة الجاهزة، فيؤكّدها الراكب بضغطةٍ واحدة.
+      // ومرّةً واحدة: من رجع وغيّر انطلاقه يختار وجهته بنفسه بعدها.
+      if (preset != null) _map.move(LatLng(preset.lat, preset.lng), 16);
       return;
     }
 
@@ -262,6 +296,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _back() {
+    // **المرحلة الأولى تُغادر الشاشة.** كان الزر محذوفاً هنا بالذات، فلا
+    // مخرج: أندرويد عنده زرّ النظام، أما الآيفون فلا زرَّ فيه، وسحبةُ
+    // الحافة تتنازع مع تحريك الخريطة فتخسر. فراكبٌ فتح الخريطة وغيّر رأيه
+    // لم يجد غير إغلاق التطبيق وفتحه.
+    if (_stage == _Stage.pickup) {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/home');
+      }
+      return;
+    }
     setState(() {
       _error = null;
       if (_stage == _Stage.dropoff2) {
@@ -465,14 +511,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       right: 12,
       child: Row(
         children: [
-          if (_stage != _Stage.pickup)
-            _circleButton(Icons.arrow_forward, _back, theme),
-          if (_stage != _Stage.pickup) const SizedBox(width: 8),
+          _circleButton(Icons.arrow_forward, _back, theme),
+          const SizedBox(width: 8),
           Expanded(
-            child: Material(
-              elevation: 3,
-              borderRadius: BorderRadius.circular(14),
-              color: theme.colorScheme.surface,
+            // زجاجٌ فوق الخريطة لا سطحٌ معتم يقطعها.
+            child: ZGlass(
+              radius: 18,
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: _onSearchChanged,
@@ -495,14 +539,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _circleButton(IconData icon, VoidCallback onTap, ThemeData theme) {
-    return Material(
-      elevation: 3,
-      shape: const CircleBorder(),
-      color: theme.colorScheme.surface,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(padding: const EdgeInsets.all(12), child: Icon(icon)),
+    return ZGlassCircle(
+      size: 46,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(11),
+            child: Icon(icon, size: 22),
+          ),
+        ),
       ),
     );
   }
@@ -512,10 +560,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       top: MediaQuery.of(context).padding.top + 68,
       left: 12,
       right: 12,
-      child: Material(
-        elevation: 4,
-        borderRadius: BorderRadius.circular(14),
-        color: theme.colorScheme.surface,
+      child: ZGlass(
+        radius: 18,
+        opacity: 0.86,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 320),
           child: ListView.separated(
@@ -547,20 +594,31 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       left: 0,
       right: 0,
       bottom: 0,
-      child: Material(
-        elevation: 8,
-        color: theme.colorScheme.surface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
+      child: ZGlass(
+        radius: 28,
+        topOnly: true,
+        blur: 26,
+        opacity: 0.80,
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // مقبضٌ يقول إن هذا لوحٌ يعلو الخريطة لا حافّة شاشة.
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outline,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
                 if (_stage != _Stage.confirm) ...[
                   Row(
                     children: [
@@ -960,6 +1018,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _requestTrip() async {
     if (_pickup == null || _dropoff == null || _route == null) return;
+    // اهتزازٌ لمسيٌّ خفيف: يؤكّد الضغطة بلا نظرٍ إلى الشاشة — والسائق
+    // على المقود. بلا صلاحية (انظر `RatingView.celebrate`).
+    HapticFeedback.mediumImpact();
 
     // **الضيف يصل إلى هنا بكامل اختياره** — نقطتان وأجرةٌ محسوبة —
     // ويُسأل التسجيل عند الزرّ الأخير وحده. من رأى أجرته قبل أن يُسأل

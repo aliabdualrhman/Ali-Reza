@@ -311,7 +311,8 @@ class _DriverCard extends ConsumerWidget {
                 ),
               ],
             ),
-            // الرقم يظهر ما دام الطلب نشطاً — العرض في القاعدة يُخفيه بعده.
+            // الرقم يظهر ما دام الطلب نشطاً أو مستحقاته مفتوحة — العرض في القاعدة
+            // يُخفيه بعدهما (0136).
             if (phone != null) ...[
               const SizedBox(height: 10),
               Text(phone,

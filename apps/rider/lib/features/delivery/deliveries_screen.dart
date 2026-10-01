@@ -178,7 +178,7 @@ class _Summary extends StatelessWidget {
             cell('وصل هذا الشهر', '${delivered.length}'),
             cell('أجور التوصيل هذا الشهر', '${fees.round()}'),
             cell('عند المناديب لك', '${owed.round()}',
-                color: owed > 0 ? ZanbourTheme.warning : null),
+                color: owed > 0 ? context.z.warn : null),
           ],
         ),
       ),
@@ -205,7 +205,7 @@ class DeliveryTile extends StatelessWidget {
     final color = switch (status) {
       'completed' => trip['delivery_outcome'] == 'returned'
           ? theme.colorScheme.error
-          : ZanbourTheme.success,
+          : context.z.ok,
       'cancelled' || 'no_drivers' => theme.colorScheme.outline,
       _ => theme.colorScheme.primary,
     };
@@ -214,7 +214,7 @@ class DeliveryTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         onTap: () => context.push('/delivery/${trip['id']}'),
-        leading: Icon(
+        leading: ZIconTile(
           live ? Icons.delivery_dining : Icons.inventory_2_outlined,
           color: color,
         ),
@@ -239,7 +239,7 @@ class DeliveryTile extends StatelessWidget {
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: settle == 'closed'
                       ? theme.colorScheme.onSurfaceVariant
-                      : ZanbourTheme.warning,
+                      : context.z.warn,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -295,7 +295,7 @@ class _SettleConfirmCardState extends ConsumerState<SettleConfirmCard> {
     final goods = ((t['goods_actual_iqd'] as num?) ?? 0).round();
 
     return Card(
-      color: ZanbourTheme.warning.withValues(alpha: 0.10),
+      color: context.z.warn.withValues(alpha: 0.10),
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(14),

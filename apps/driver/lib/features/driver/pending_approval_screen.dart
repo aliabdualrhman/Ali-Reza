@@ -71,8 +71,8 @@ class PendingApprovalScreen extends ConsumerWidget {
                             : Icons.hourglass_top,
                     size: 88,
                     color: rejected || suspended
-                        ? ZanbourTheme.danger
-                        : ZanbourTheme.warning,
+                        ? context.z.bad
+                        : context.z.warn,
                   ),
                   const SizedBox(height: 24),
                   Text(

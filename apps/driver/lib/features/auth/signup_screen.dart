@@ -95,7 +95,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
     try {
       final outcome = await ref.read(authRepositoryProvider).signUp(
-            email: _email.text,
+            email: AuthFlags.emailEnabled ? _email.text : null,
             password: _password.text,
             fullName: _name.text,
             // نرسل الصيغة الموحّدة لا ما كتبه المستخدم — القاعدة توحّدها
@@ -178,18 +178,22 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      textDirection: TextDirection.ltr,
-                      decoration: const InputDecoration(
-                        labelText: 'البريد الإلكتروني',
-                        prefixIcon: Icon(Icons.alternate_email),
+                    // **البريد معطّلاً من اللوحة (0139) لا يظهر الحقل أصلاً** — ويُنشأ
+                    // الحساب على الرقم وحده.
+                    if (AuthFlags.emailEnabled) ...[
+                      TextFormField(
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        textDirection: TextDirection.ltr,
+                        decoration: const InputDecoration(
+                          labelText: 'البريد الإلكتروني',
+                          prefixIcon: Icon(Icons.alternate_email),
+                        ),
+                        validator: Validators.email,
                       ),
-                      validator: Validators.email,
-                    ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 16),
+                    ],
 
                     TextFormField(
                       controller: _phone,

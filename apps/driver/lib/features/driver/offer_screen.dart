@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zanbour_core/zanbour_core.dart';
 
@@ -194,6 +195,9 @@ class _OfferCardState extends ConsumerState<_OfferCard> {
   }
 
   Future<void> _accept() async {
+    // اهتزازٌ لمسيٌّ خفيف: يؤكّد الضغطة بلا نظرٍ إلى الشاشة — والسائق
+    // على المقود. بلا صلاحية (انظر `RatingView.celebrate`).
+    HapticFeedback.mediumImpact();
     setState(() {
       _busy = true;
       _error = null;

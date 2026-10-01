@@ -38,7 +38,58 @@ class RateRiderScreen extends ConsumerWidget {
     // يطلب من الراكب مبلغاً لا يدين به — أسوأ خطأ ممكن في لحظة التسليم.
     final cash = fare == null ? null : fare - discount;
 
+    // **ما ربحه من هذه الرحلة، لا ما دفعه الراكب وحده.** الأجرة كبيرةً
+    // تتدحرج، وصافيه بعد العمولة تحتها — كما تعرضهما بطاقة «اليوم».
+    final net = (trip['driver_earning_iqd'] as num?)?.round();
+    final z = context.z;
+
     return RatingView(
+      celebrate: fare != null,
+      hero: fare == null
+          ? null
+          : Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    ZCountUp(
+                      fare,
+                      duration: const Duration(milliseconds: 1200),
+                      style: TextStyle(
+                        fontSize: 44,
+                        fontWeight: FontWeight.w700,
+                        color: z.amberDeep,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text('دينار',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: z.inkDim)),
+                  ],
+                ),
+                if (net != null) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: z.ok.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text('صافيك $net دينار بعد العمولة',
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: z.ok)),
+                  ),
+                ],
+              ],
+            ),
       title: 'انتهت الرحلة',
       subtitle: fare == null
           ? 'كيف كان الراكب؟'

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.3+34
+version: 1.0.5+36
 
 environment:
   sdk: ^3.13.2
@@ -109,6 +109,28 @@ flutter:
   # dotenv.load عند الإقلاع بخطأ "asset not found".
   assets:
     - .env
+
+  # ——— خطّ الواجهة: IBM Plex Sans Arabic — خطّ «محاكي زنبور» ———
+  # **يُشحن مع التطبيق لا يُنزَّل.** حزمة `google_fonts` تجلبه وقت التشغيل
+  # من شبكة جوجل، فيظهر التطبيق بخطّ النظام في أول فتحةٍ بلا إنترنت —
+  # وأكثر مستخدمينا يفتحونه أول مرّة في الشارع.
+  #
+  # **أربعة أوزان لا وزنان.** المحاكي يبني تسلسله البصري على ٥٠٠ و٦٠٠
+  # و٧٠٠ معاً: العنوان ٧٠٠، والتسمية ٦٠٠، والنصّ ٤٠٠. ووزنٌ ناقص يجعل
+  # فلاتر يصنعه بتسميك الحروف آلياً، فتخرج مشوّهة.
+  #
+  # والترخيص SIL OFL 1.1 — نصّه في `assets/fonts/OFL.txt`.
+  fonts:
+    - family: IBMPlexSansArabic
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:

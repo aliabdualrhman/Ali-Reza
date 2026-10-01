@@ -1,0 +1,23 @@
+iq.zanbour.driver
+```driver:iq.zanbour.driver
+
+هذا هو الاسم المضبوط في المشروع وفي Firebase، ويطابق أسلوب الراكب:
+
+| التطبيق | Bundle ID |
+|---------|-----------|
+| الراكب | `iq.zanbour.rider` |
+| السائق (الكابتن) | `iq.zanbour.driver` |
+
+### في Apple Developer
+1. **Certificates, Identifiers & Profiles** → **Identifiers** → **+**
+2. اختر **App IDs** → **App**
+3. **Description:** مثلاً `Zanbour Driver` أو `كابتن زنبور`
+4. **Bundle ID:** Explicit → `iq.zanbour.driver`
+5. فعّل على الأقل: **Push Notifications** (مهم لـ FCM/APNs)
+
+### ملاحظات سريعة عن APNs عندك
+- **Key ID:** `HYAXR2K9KQ`
+- **Team ID:** `VHLSHY892L`
+- هذه القيم تُرفع في Firebase → مشروع `iq.zanbour.driver` → Cloud Messaging (Development و Production) — وهذا صحيح.
+
+بعد إنشاء Bundle ID في Apple، أنشئ التطبيق في App Store Connect بنفس المعرّف `iq.zanbour.driver`.

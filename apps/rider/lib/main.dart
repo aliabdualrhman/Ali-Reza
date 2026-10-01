@@ -40,7 +40,24 @@ Future<void> main() async {
       // **مفتاح الخرائط من اللوحة لا من البناء** (0119). لا ننتظره:
       // لو تأخّرت الشبكة يقلع التطبيق بمفتاح البناء، وتصل القيمة
       // الجديدة عند أوّل شاشةٍ تقرأ الإعدادات.
-      await loadMapConfig(Supabase.instance.client);
+      // **مفتاح الخرائط من .env قبل اللوحة.** كان لا يُقرأ إلا من
+      // `--dart-define`، فمن بنى بلا الراية خرج بخرائط تنتظر اللوحة.
+      // والقيمة في .env أصلاً؛ فتُتبنّى هنا، ثم تعلوها قيمةُ اللوحة
+      // إن وصلت — فيبقى تغيير المفتاح من اللوحة بلا بناء.
+      MapEndpoints.adopt(key: dotenv.env['GEOAPIFY_KEY']);
+      // **المسجَّل لا ينتظر الشبكة قبل أول شاشة.** كان الإقلاع يقف هنا
+      // على ردّ الخادم — حتى أربع ثوانٍ على شبكةٍ بطيئة — في كلّ فتحة.
+      // ومفتاح الخرائط في يده من .env، ومفتاح البريد لا يلزمه إلا في
+      // شاشة الدخول. فيصل الردّ وهو يرى رئيسيته.
+      //
+      // **ومن لا جلسة له ينتظر — قليلاً.** شاشته الأولى الدخول، وهي تقرأ
+      // مفتاح البريد لتعرف أتطلب الرقم وحده أم البريد معه.
+      final signedIn = Supabase.instance.client.auth.currentSession != null;
+      final boot = loadMapConfig(
+        Supabase.instance.client,
+        timeout: Duration(seconds: signedIn ? 4 : 2),
+      );
+      if (!signedIn) await boot;
     }
   } catch (e) {
     final msg = e.toString();
@@ -113,6 +130,12 @@ class _ZanbourAppState extends ConsumerState<ZanbourApp> {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
+      // **الخلفية الحيّة خلف الشاشات كلّها من هنا.** `go_router` يبني
+      // شاشاته بلا انتقالٍ (`NoTransitionPage`)، فلا يمرّ بانتقال السمة
+      // الذي يرسمها للصفحات العادية — وُجد ذلك بتجربةٍ لا بقراءة. فتُرسم
+      // مرّةً تحت الملّاح كلّه، والشاشات شفّافةٌ فوقها.
+      builder: (context, child) =>
+          ZMeshBackground(child: child ?? const SizedBox.shrink()),
       title: 'زنبور',
       debugShowCheckedModeBanner: false,
       routerConfig: router,

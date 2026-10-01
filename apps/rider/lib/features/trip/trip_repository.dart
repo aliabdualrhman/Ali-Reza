@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:zanbour_core/zanbour_core.dart' show geoServiceProvider;
 
 import '../auth/auth_repository.dart';
 
@@ -381,6 +382,43 @@ class TripRepository {
     return List<Map<String, dynamic>>.from(rows);
   }
 
+  /// آخر الوجهات المختلفة التي وصلها الراكب — لـ«إلى أين؟» في الرئيسية.
+  ///
+  /// **من رحلاته المكتملة وحدها، ومن الرحلات لا التسوّق.** الملغاة وجهةٌ
+  /// لم يصلها، ووجهة التسوّق بيته لا مكانٌ يُطلب إليه.
+  ///
+  /// **والتكرار يُطوى هنا لا في القاعدة:** وجهتان على بعد أمتارٍ مكانٌ
+  /// واحد (باب البيت نفسه بدبّوسين)، فتُقرّبان إلى نحو مئة متر.
+  Future<List<({double lat, double lng, String address})>> recentDestinations(
+      {int take = 3}) async {
+    final rows = await _sb
+        .from('trips')
+        .select('dropoff_lat, dropoff_lng, dropoff_address, pickup_address')
+        .eq('kind', 'ride')
+        .eq('status', 'completed')
+        .not('dropoff_lat', 'is', null)
+        .order('completed_at', ascending: false)
+        .limit(30);
+
+    final seen = <String>{};
+    final out = <({double lat, double lng, String address})>[];
+    for (final r in List<Map<String, dynamic>>.from(rows)) {
+      final lat = (r['dropoff_lat'] as num).toDouble();
+      final lng = (r['dropoff_lng'] as num).toDouble();
+      final key = '${(lat * 1000).round()}:${(lng * 1000).round()}';
+      if (!seen.add(key)) continue;
+      final addr = '${r['dropoff_address'] ?? ''}'.trim();
+      // **عنوان الوجهة الذي يساوي عنوان الانطلاق كُتب خطأً** — سباقٌ في
+      // الخريطة أُصلح في `_refreshCenterAddress`. الإحداثيات فيه صحيحة،
+      // فيُترك العنوان فارغاً ليُستخرج من الإحداثيات أدناه.
+      final broken = addr.isNotEmpty &&
+          addr == '${r['pickup_address'] ?? ''}'.trim();
+      out.add((lat: lat, lng: lng, address: broken ? '' : addr));
+      if (out.length >= take) break;
+    }
+    return out;
+  }
+
   Future<void> cancel(String tripId, {String? reason}) async {
     await _sb.rpc('cancel_trip', params: {
       'p_trip_id': tripId,
@@ -399,6 +437,29 @@ class TripRepository {
   }
 }
 
+
+/// آخر ثلاث وجهاتٍ مختلفة — فارغةٌ للضيف ولمن لم يُكمل رحلة.
+final recentDestinationsProvider =
+    FutureProvider<List<({double lat, double lng, String address})>>(
+        (ref) async {
+  if (ref.watch(sessionProvider) == null) return const [];
+  final list = await ref.watch(tripRepositoryProvider).recentDestinations();
+  // ما فقد عنوانه (رحلاتٌ قبل الإصلاح) يُستخرج عنوانه من إحداثياته.
+  final geo = ref.read(geoServiceProvider);
+  return [
+    for (final d in list)
+      if (d.address.isNotEmpty)
+        d
+      else
+        (
+          lat: d.lat,
+          lng: d.lng,
+          address: await geo
+              .addressOf(LatLng(d.lat, d.lng))
+              .catchError((_) => ''),
+        ),
+  ];
+});
 
 /// سجل رحلات الراكب.
 final tripHistoryProvider =

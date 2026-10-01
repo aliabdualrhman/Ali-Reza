@@ -131,7 +131,25 @@ class LocationTracker extends Notifier<Position?> {
     //      محدَّث، فيستبعده من البحث — متصلٌ ولا تصله طلبات.
     //
     // إسناد القراءة الأولى يغلق البابين معاً قبل أن يبدأ التدفّق.
-    state = await ref.read(geoServiceProvider).currentPosition();
+    //
+    // **وعلى iOS (مراجعة آبل / iPad):** أول قراءة GPS كثيراً ما تفشل
+    // بـ kCLErrorDomain. لا نُسقط التتبّع كله — نبدأ بالتدفّق ونستخدم
+    // آخر موقع معروف إن وُجد، وإلا نترك state فارغة حتى أول حدث.
+    try {
+      state = await ref.read(geoServiceProvider).currentPosition();
+    } on GeoException {
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null) state = last;
+      } catch (_) {}
+      // إذنٌ مرفوض صراحةً: لا فائدة من فتح التدفّق — نُعيد الرمي
+      // ليعرف المتصل (مفتاح «متصل») ويعرض الرسالة.
+      final p = await Geolocator.checkPermission();
+      if (p == LocationPermission.denied ||
+          p == LocationPermission.deniedForever) {
+        rethrow;
+      }
+    }
 
     _sub = Geolocator.getPositionStream(locationSettings: _settings())
         .listen((p) {

@@ -59,9 +59,29 @@ class _DeliveryTripViewState extends ConsumerState<DeliveryTripView> {
   // الملاحة
   // ---------------------------------------------------------------------------
 
+  /// يفتح Waze إلى الوجهة ويبدأ الملاحة، أو يعيد false إن لم يكن مثبّتاً.
+  Future<bool> _openWaze(double lat, double lng) async {
+    try {
+      if (!await canLaunchUrl(Uri.parse('waze://'))) return false;
+      return await launchUrl(
+        // القالب من لوحة المدير (0141)، والافتراضي رابط Waze الرسمي.
+        NavLinks.waze(lat, lng),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _navigateTo(double lat, double lng) async {
+    // **Waze برابطه الرسمي لا بمخططه القديم.** `waze://?ll=…&navigate=yes`
+    // صار يفتح Waze ولا يرسم مساراً في إصداراته الحديثة — لاحظه علي في
+    // 2026-10-01 وكوده لم يتغيّر منذ أسابيع، فالذي تغيّر Waze. والرابط
+    // الذي توصي به Waze: `https://waze.com/ul`. ولا نناديه إلا إن كان
+    // Waze مثبّتاً — وإلا فتح المتصفّح، ولم نصل إلى خرائط جوجل أبداً.
+    if (await _openWaze(lat, lng)) return;
+
     final candidates = <Uri>[
-      Uri.parse('waze://?ll=$lat,$lng&navigate=yes'),
       // آيفون لا يعرف `google.navigation:` ولا `geo:` — انظر
       // `ActiveTripScreen._navigate`.
       Uri.parse('comgooglemaps://?daddr=$lat,$lng&directionsmode=driving'),

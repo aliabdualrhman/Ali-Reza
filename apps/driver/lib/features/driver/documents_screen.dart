@@ -69,7 +69,21 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
     final docsAsync = ref.watch(myDocumentsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('وثائقك')),
+      appBar: AppBar(
+        title: const Text('وثائقك'),
+        // **مخرجٌ قبل الاكتمال أيضاً.** بعد التسجيل يُفتح هذا الإطار بـ`go`
+        // فلا شيء خلفه ولا سهمَ رجوع. أندرويد يخرج بزرّ النظام، أما
+        // الآيفون فلا زرَّ له — فسائقٌ لم يجد صورة رخصته الآن بقي محبوساً
+        // حتى يُغلق التطبيق. والانتظار يقبله ناقصاً، وفيه رابطٌ يعيده
+        // إلى هنا وزرُّ خروج.
+        leading: context.canPop()
+            ? null
+            : IconButton(
+                icon: const BackButtonIcon(),
+                tooltip: 'لاحقاً',
+                onPressed: () => context.go('/pending'),
+              ),
+      ),
       body: docsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text(AppError.message(e))),
@@ -110,7 +124,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                                 ? Icons.check_circle
                                 : Icons.upload_file,
                             color: done == required_.length
-                                ? ZanbourTheme.success
+                                ? context.z.ok
                                 : theme.colorScheme.primary,
                           ),
                           const SizedBox(width: 10),
@@ -230,9 +244,9 @@ class _DocTile extends StatelessWidget {
     final notes = row?['review_notes'] as String?;
 
     final (icon, color, label) = switch (status) {
-      'approved' => (Icons.check_circle, ZanbourTheme.success, 'مقبولة'),
-      'rejected' => (Icons.cancel, ZanbourTheme.danger, 'مرفوضة — أعد الرفع'),
-      'pending' => (Icons.schedule, ZanbourTheme.warning, 'قيد المراجعة'),
+      'approved' => (Icons.check_circle, context.z.ok, 'مقبولة'),
+      'rejected' => (Icons.cancel, context.z.bad, 'مرفوضة — أعد الرفع'),
+      'pending' => (Icons.schedule, context.z.warn, 'قيد المراجعة'),
       _ => (Icons.add_circle_outline, theme.colorScheme.outline, 'لم تُرفع'),
     };
 

@@ -45,7 +45,10 @@ class MyTripsScreen extends ConsumerWidget {
             return ListView.separated(
               itemCount: rows.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (_, i) => _TripTile(trip: rows[i]),
+              // **تظهر متتابعةً** — `.rv` في المحاكي: أوّلها أوّلاً فتعرف العين
+              // من أين تبدأ.
+              itemBuilder: (_, i) =>
+                  ZRise(index: i, child: _TripTile(trip: rows[i])),
             );
           },
         ),
@@ -77,9 +80,10 @@ class _TripTile extends StatelessWidget {
         builder: (_) => TripDetailScreen(tripId: trip['id'] as String),
       )),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: Icon(
+      // أيقونة الحالة في مربّعٍ كهرمانيّ — والملغاة بالأحمر كما كانت.
+      leading: ZIconTile(
         done ? Icons.check_circle : Icons.cancel_outlined,
-        color: done ? theme.colorScheme.primary : theme.colorScheme.error,
+        color: done ? null : theme.colorScheme.error,
       ),
       title: Row(
         children: [

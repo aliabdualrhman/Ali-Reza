@@ -316,8 +316,8 @@ class _DriverFound extends ConsumerWidget {
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.star,
-                                        size: 16, color: Colors.amber),
+                                    Icon(Icons.star,
+                                        size: 16, color: context.z.amber),
                                     const SizedBox(width: 4),
                                     Text('${d['rating_avg'] ?? '5.0'}'),
                                   ],
@@ -387,14 +387,14 @@ class _DriverFound extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.10),
+                color: context.z.ok.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.shade600),
+                border: Border.all(color: context.z.ok),
               ),
               child: Row(
                 children: [
                   Icon(Icons.verified_outlined,
-                      color: Colors.green.shade700, size: 20),
+                      color: context.z.ok, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(

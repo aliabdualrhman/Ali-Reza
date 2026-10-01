@@ -110,7 +110,8 @@ final deliveryProvider =
   return all.where((r) => r['id'] == id).firstOrNull;
 });
 
-/// مندوب الطلب — الاسم والصورة والهاتف أثناء الطلب النشط وحده.
+/// مندوب الطلب — الاسم والصورة، والهاتف أثناء الطلب النشط وما دامت
+/// مستحقاته مفتوحة (0136).
 final deliveryDriverProvider =
     FutureProvider.autoDispose.family<Map<String, dynamic>?, String>(
         (ref, tripId) async {

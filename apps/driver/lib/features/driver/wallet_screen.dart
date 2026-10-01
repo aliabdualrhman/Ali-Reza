@@ -5,16 +5,24 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:zanbour_core/zanbour_core.dart';
 
 import 'driver_repository.dart';
+import 'incentive_awards.dart';
+
+/// **يُعاد حين يتغيّر الرصيد وحده — لا مع كلّ نبضة موقع.** كان يراقب سجلّ
+/// السائق كلّه، والسجلّ يتحدّث كلّ بضع ثوانٍ بالموقع
+/// (`update_driver_location`)؛ فيُجلب الكشف من جديد كلّ ثوانٍ وتُبنى
+/// القائمة فتقفز إلى الأعلى والسائق يقرأ — ما شكا منه علي.
+final _balanceKey = driverRecordProvider
+    .select((d) => (d.value?.walletBalance, d.value?.bonusBalance));
 
 final walletHistoryProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  ref.watch(driverRecordProvider);
+  ref.watch(_balanceKey);
   return ref.watch(driverRepositoryProvider).walletHistory();
 });
 
 final payoutRequestsProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  ref.watch(driverRecordProvider);
+  ref.watch(_balanceKey);
   return ref.watch(driverRepositoryProvider).payoutRequests();
 });
 
@@ -41,7 +49,11 @@ class WalletScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final driver = ref.watch(driverRecordProvider).value;
+    // **الرصيدان وحدهما.** السجلّ كلّه يتغيّر مع كلّ نبضة موقع.
+    final driver = ref.watch(driverRecordProvider.select((d) => d.value == null
+        ? null
+        : (walletBalance: d.value!.walletBalance,
+            bonusBalance: d.value!.bonusBalance)));
     final history = ref.watch(walletHistoryProvider);
     final payouts = ref.watch(payoutRequestsProvider);
     final settings = ref.watch(publicSettingsProvider);
@@ -179,7 +191,8 @@ class WalletScreen extends ConsumerWidget {
                     return const SizedBox.shrink();
                   }
                   return OutlinedButton.icon(
-                    onPressed: () => _buyCredit(context, phone, driver),
+                    onPressed: () => _buyCredit(
+                        context, phone, ref.read(driverRecordProvider).value),
                     icon: const Icon(Icons.chat),
                     label: const Text('شراء رصيد عبر واتساب'),
                     style: OutlinedButton.styleFrom(
@@ -212,7 +225,7 @@ class WalletScreen extends ConsumerWidget {
                     const _SectionTitle('طلبات سحب قيد المعالجة'),
                     for (final r in open)
                       ListTile(
-                        leading: const Icon(Icons.hourglass_top),
+                        leading: ZIconTile(Icons.hourglass_top, color: context.z.warn),
                         title: Text('${(r['amount_iqd'] as num).round()} دينار'),
                         subtitle: Text('إلى ${r['zain_phone']}',
                             textDirection: TextDirection.ltr),
@@ -247,6 +260,10 @@ class WalletScreen extends ConsumerWidget {
                 label: 'تواصل مع الدعم',
               ),
             ),
+
+            // ---- أرباح الحوافز ----
+            // حافز الهدية لا يمرّ بالمحفظة فلا يظهر في الكشف تحته — فهنا.
+            const IncentiveAwardsSection(margin: EdgeInsets.only(bottom: 12)),
 
             // ---- كشف الحركات ----
             const _SectionTitle('كشف الحساب'),

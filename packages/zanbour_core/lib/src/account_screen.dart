@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+
+import 'motion.dart';
+import 'theme.dart';
+import 'vehicle_art.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +12,7 @@ import 'guide_button.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'invite_screen.dart';
 import 'verify_phone_screen.dart';
+import 'settings.dart';
 
 /// شاشة «حسابي» — مشتركة بين الراكب والسائق.
 ///
@@ -34,7 +39,7 @@ final accountProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
     final d = await sb
         .from('drivers')
         .select('vehicle_type, vehicle_plate, vehicle_color, '
-            'verification_status, wallet_balance_iqd')
+            'verification_status, wallet_balance_iqd, vehicle_kind')
         .eq('id', uid)
         .maybeSingle();
     if (d != null) out['_driver'] = Map<String, dynamic>.from(d);
@@ -109,6 +114,16 @@ class AccountScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
               children: [
+                // **رأسٌ قبل الأقسام.** الشاشة كانت تبدأ بجدولٍ من الحقول؛
+                // والمحاكي يبدأ بمن يملكها. والحقول كلّها باقية تحته — هذا
+                // عرضٌ لا بديل.
+                ZRise(index: 0, child: _Header(
+                  name: '${a['full_name'] ?? ''}',
+                  phone: '${a['phone'] ?? ''}',
+                  verified: a['phone_verified'] == true,
+                )),
+                const SizedBox(height: 16),
+
                 if (pending != null) ...[
                   _PendingCard(request: pending, ref: ref),
                   const SizedBox(height: 16),
@@ -119,10 +134,13 @@ class AccountScreen extends ConsumerWidget {
 
                 _Section(
                   title: 'بياناتي',
+                  leading: const ZIconTile(Icons.person_outline),
                   children: [
                     _Row('الاسم الثلاثي', '${a['full_name'] ?? '—'}'),
                     _Row('رقم الهاتف', '${a['phone'] ?? '—'}', ltr: true),
-                    _Row('البريد', '${a['email'] ?? '—'}', ltr: true),
+                    // يختفي حين يُطفئ المدير البريد (0139).
+                    if (AuthFlags.emailEnabled)
+                      _Row('البريد', '${a['email'] ?? '—'}', ltr: true),
                     _Row('تاريخ الميلاد', _date(a['date_of_birth'])),
                     _Row('العنوان', '${a['address'] ?? '—'}'),
                   ],
@@ -132,6 +150,16 @@ class AccountScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   _Section(
                     title: 'مركبتي',
+                    // **مركبته هو لا أيقونةٌ عامّة** — كما في بطاقة الاتصال.
+                    leading: ZIconTile(
+                      null,
+                      child: ZVehicleArt(
+                        kind: '${d['vehicle_kind'] ?? 'bike'}',
+                        width: 26,
+                        color: context.z.amberDeep,
+                        background: context.z.amberWash,
+                      ),
+                    ),
                     children: [
                       _Row('النوع', '${d['vehicle_type'] ?? '—'}'),
                       _Row('رقم اللوحة', '${d['vehicle_plate'] ?? '—'}',
@@ -163,10 +191,10 @@ class AccountScreen extends ConsumerWidget {
                 ),
 
                 const SizedBox(height: 20),
-                const _VerificationCards(),
+                const ZRise(index: 3, child: _VerificationCards()),
 
                 const SizedBox(height: 20),
-                _BalanceAndInvite(driver: driver),
+                ZRise(index: 4, child: _BalanceAndInvite(driver: driver)),
 
                 // **شرح الاستخدام هنا لا في الشريط العلوي** (0121).
                 // شريط الراكب فيه خمس أيقونات أصلاً، ومن يبحث عن
@@ -631,9 +659,10 @@ class _ConfirmDeleteState extends State<_ConfirmDelete> {
 // عناصر عرض
 // =============================================================================
 class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.children});
+  const _Section({required this.title, required this.children, this.leading});
   final String title;
   final List<Widget> children;
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
@@ -644,14 +673,87 @@ class _Section extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                if (leading != null) ...[leading!, const SizedBox(width: 10)],
+                Text(title,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
             const SizedBox(height: 12),
             ...children,
           ],
         ),
       ),
+    );
+  }
+}
+
+/// رأس «حسابي» — الحرف الأول في دائرةٍ كهرمانية، والاسم، والهاتف.
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.name,
+    required this.phone,
+    required this.verified,
+  });
+
+  final String name;
+  final String phone;
+  final bool verified;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final z = context.z;
+    final initial = name.trim().isEmpty ? '؟' : name.trim().characters.first;
+
+    return Row(
+      children: [
+        Container(
+          width: 58,
+          height: 58,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: AlignmentDirectional.topStart,
+              end: AlignmentDirectional.bottomEnd,
+              colors: [z.amber2, z.amber],
+            ),
+          ),
+          child: Text(initial,
+              style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: z.onAmber)),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name.isEmpty ? '—' : name,
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Wrap(
+                spacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(phone,
+                      textDirection: TextDirection.ltr,
+                      style: theme.textTheme.bodySmall),
+                  if (verified)
+                    Text('رقمك موثَّق',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: z.ok, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1009,10 +1111,14 @@ class _VerificationCardsState extends ConsumerState<_VerificationCards> {
     final emailOk = v['email'] == true;
     final otpOn = v['otp_enabled'] == true;
     final phoneMode = v['mode'] == 'phone';
+    // **البريد معطّلاً (0139) لا تُعرض بطاقته** — لا توثيقَ لما لا يُطلب.
+    final emailOn = v['email_enabled'] != false && AuthFlags.emailEnabled;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: phoneMode
+      children: !emailOn
+          ? [_phoneCard(phoneOk, otpOn, true)]
+          : phoneMode
           ? [
               _phoneCard(phoneOk, otpOn, true),
               const SizedBox(height: 12),
@@ -1051,7 +1157,7 @@ class _VCard extends StatelessWidget {
     if (ok) {
       return Card(
         child: ListTile(
-          leading: Icon(Icons.verified_rounded, color: Colors.green.shade600),
+          leading: Icon(Icons.verified_rounded, color: context.z.ok),
           title: Text(title),
           subtitle: Text(body),
         ),

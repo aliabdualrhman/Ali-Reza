@@ -15,6 +15,9 @@ import 'package:zanbour_core/zanbour_core.dart';
 import '../../core/push_service.dart';
 import '../auth/auth_repository.dart';
 import 'driver_repository.dart';
+import 'earnings_card.dart';
+import 'incentives_screen.dart' show myIncentivesProvider;
+import 'store_dues_screen.dart' show storeDuesProvider, orderBlocksProvider;
 import 'location_tracker.dart';
 import 'push_check_screen.dart';
 
@@ -55,17 +58,36 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   /// سبيل له إلى موقعه إلا أن يتّصل. وهو غير المتصل بعد.
   bool _locating = false;
 
-  Future<void> _locateMe() async {
+  /// فحصٌ دوريّ ما دام عليه دَينٌ أو إيقاف — انظر [_watchBlocks].
+  Timer? _blockPoll;
+
+  /// هل كانت طلباته موقوفةً في الفحص السابق؟ — لنعرف لحظة رفع الإيقاف.
+  bool _wasBlocked = false;
+
+  /// يحرّك الخريطة بلا أن يرمي إن لم تُبنَ بعد (iPad / إقلاع سريع).
+  void _safeMove(LatLng point, [double? zoom]) {
+    try {
+      _map.move(point, zoom ?? _map.camera.zoom);
+    } catch (_) {
+      // MapController بلا كاميرا بعد — initialCenter يلتقط لاحقاً.
+    }
+  }
+
+  Future<void> _locateMe({bool silent = false}) async {
     setState(() => _locating = true);
     try {
       final geo = ref.read(geoServiceProvider);
       final p = await geo.currentPosition();
       if (!mounted) return;
-      _map.move(LatLng(p.latitude, p.longitude), 16);
+      _safeMove(LatLng(p.latitude, p.longitude), 16);
     } on GeoException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      // **صامت عند فتح الشاشة.** قراءة الموقع التلقائية بعد الدخول
+      // تفشل كثيراً على أجهزة المراجعة (iPad بلا GPS ثابت) — وإظهار
+      // شريط خطأ أحمر فوراً هو ما رفضته آبل بـ 2.1.
+      // الخطأ يبقى ظاهراً حين يضغط السائق زرّ الموقع أو «متصل».
+      if (!silent && mounted) setState(() => _error = e.message);
     } catch (e) {
-      if (mounted) setState(() => _error = AppError.message(e));
+      if (!silent && mounted) setState(() => _error = AppError.message(e));
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -82,10 +104,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
 
     final p = await ref.read(geoServiceProvider).lastKnown();
 
-    // **ثم قراءةٌ حيّة.** الموقع المخزّن قد يكون من مدينةٍ أخرى أو
-    // عمرُه ساعات؛ ومن فتح التطبيق يريد أن يرى نفسه لا أثره.
+    // **ثم قراءةٌ حيّة بصمت.** لا نعرض خطأً إن فشلت — الخريطة تعمل
+    // بالمركز الاحتياطي، والسائق يصحّح بضغط زرّ الموقع.
     if (mounted && _shown == null) {
-      unawaited(_locateMe());
+      unawaited(_locateMe(silent: true));
     }
     // القراءة الحيّة أسبق دائماً: إن سبقتنا فلا نُرجع الكاميرا للوراء.
     if (p == null || !mounted || _shown != null) return;
@@ -94,16 +116,13 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     // وحينها لا يُعاد قراءة `initialCenter` فنحرّك الكاميرا بأنفسنا.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _shown != null) return;
-      try {
-        _map.move(p, _map.camera.zoom);
-      } catch (_) {
-        // الخريطة لم تُبنَ بعد — `initialCenter` سيلتقط `_seed`.
-      }
+      _safeMove(p, 16);
     });
   }
 
   @override
   void dispose() {
+    _blockPoll?.cancel();
     _map.dispose();
     super.dispose();
   }
@@ -166,10 +185,52 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     }
   }
 
+  /// **يعيد الفحص كلّ ١٥ ثانية ما دامت البطاقة الحمراء ظاهرة.**
+  ///
+  /// وجده علي: أرجع المال، وأكّد صاحب المحلّ الاستلام — والبطاقة الحمراء
+  /// باقية والطلبات لا تعود حتى يفتح السائق «المستحقات» ويحدّثها بيده.
+  /// التأكيد يقع في جوال التاجر، فلا شيء في جوال السائق يعرف به. فالفحص
+  /// يدور ما دام شيءٌ معلّقاً، ويقف حين لا يبقى شيء.
+  ///
+  /// **وحين يُرفع الإيقاف يعود متّصلاً وحده** إن كانت خدماته مفتوحة: من حاول
+  /// الاتصال وهو موقوف رُفض فبقي غير متّصل، ولن يعرف أن يضغط ثانية. ويمرّ
+  /// بـ`_toggleOnline` كالمربّعات — فيعود تتبّع الموقع معه.
+  void _watchBlocks() {
+    final b = ref.read(orderBlocksProvider).value;
+    final dues = ref.read(storeDuesProvider).value ?? const [];
+    final blocked = b != null &&
+        (b['dues_blocked'] == true || b['wallet_blocked'] == true);
+    final owes = dues.any((r) => r['settle_status'] != 'closed');
+
+    if ((blocked || owes) && _blockPoll == null) {
+      _blockPoll = Timer.periodic(const Duration(seconds: 15), (_) {
+        ref.invalidate(orderBlocksProvider);
+        ref.invalidate(storeDuesProvider);
+      });
+    } else if (!blocked && !owes) {
+      _blockPoll?.cancel();
+      _blockPoll = null;
+    }
+
+    if (_wasBlocked && b != null && !blocked) {
+      final d = ref.read(driverRecordProvider).value;
+      final services = ref.read(serviceStatusProvider).value ??
+          const ServiceAvailability.open();
+      if (d != null &&
+          d.status == DriverStatus.offline &&
+          d.wantsWork(services)) {
+        _toggleOnline(true);
+      }
+    }
+    if (b != null) _wasBlocked = blocked;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final driverAsync = ref.watch(driverRecordProvider);
+    ref.listen(orderBlocksProvider, (_, _) => _watchBlocks());
+    ref.listen(storeDuesProvider, (_, _) => _watchBlocks());
 
     // الموقع يأتي من المتتبّع على مستوى التطبيق لا من هذه الشاشة.
     final pos = ref.watch(locationTrackerProvider);
@@ -177,9 +238,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       _shown = pos;
       // بعد الإطار: تحريك الكاميرا أثناء البناء يرمي استثناء.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _map.move(LatLng(pos.latitude, pos.longitude), _map.camera.zoom);
-        }
+        if (!mounted) return;
+        _safeMove(LatLng(pos.latitude, pos.longitude));
       });
     }
 
@@ -201,11 +261,13 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       );
     });
 
-    // **تحذير دائم حين تكون الإشعارات معطّلة.** سائق بلا إشعارات لا تصله
-    // طلبات وهو يظن نفسه يعمل — ويكتشف بعد ساعات أن المشكلة إذنٌ رفضه
-    // مرة. الفشل الصامت يجب أن يُرى.
+    // **تحذير حين تُرفض الإشعارات صراحةً — لا قبل السؤال.**
+    //
+    // كان `!healthy` يكفي لإظهار البطاقة الحمراء: رمزٌ لم يُسجَّل بعد،
+    // أو إذنٌ `notDetermined` أثناء حوار النظام، فيظهر «مهم — إعدادات
+    // ناقصة» فور الدخول — وهو ما وصفته آبل بـ«خطأ بعد تسجيل الدخول».
     final push = ref.watch(pushDiagnosticsProvider).value;
-    final pushBroken = push != null && !push.healthy;
+    final pushBroken = push?.showHomeAlert == true;
 
     return Scaffold(
       body: driverAsync.when(
@@ -213,7 +275,32 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
         error: (e, _) => Center(child: Text(AppError.message(e))),
         data: (d) {
           if (d == null) {
-            return const Center(child: Text('لا يوجد سجل سائق'));
+            // **لا نعرض «لا يوجد سجل» فور الدخول.** البثّ قد يصل فارغاً
+            // لحظةً قبل الصفّ، وحساب مراجعة بلا صفّ في `drivers` كان
+            // يظهر رسالةً تشبه العطل. نُمهل ثم نوضح مع خروج.
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(
+                      'جاري تجهيز حسابك…',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 24),
+                    TextButton(
+                      onPressed: () =>
+                          ref.read(authRepositoryProvider).signOut(),
+                      child: const Text('خروج'),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
           final online = d.status != DriverStatus.offline;
 
@@ -236,49 +323,61 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate:
-                        MapEndpoints.tiles,
+                    urlTemplate: MapEndpoints.tiles,
                     // محفوظةٌ على الهاتف ثلاثين يوماً — انظر ZanbourTiles.
                     tileProvider: ZanbourTiles.provider(),
                     userAgentPackageName: 'com.zanbour.driver',
                     maxZoom: 19,
                   ),
+                  ..._hotspotLayers(),
                   if (pos != null)
-                    MarkerLayer(markers: [
-                      Marker(
-                        point: LatLng(pos.latitude, pos.longitude),
-                        width: 48,
-                        height: 48,
-                        child: Icon(Icons.two_wheeler,
-                            size: 38, color: theme.colorScheme.primary),
-                      ),
-                    ]),
-                  const RichAttributionWidget(attributions: [
-                    TextSourceAttribution(MapEndpoints.attribution),
-                  ]),
+                    MarkerLayer(
+                      markers: [
+                        // **مركبته هو على الخريطة.** سائق التكتك يرى تكتكاً
+                        // والستوتة ستوتة — من `vehicle_kind` في سجلّه.
+                        Marker(
+                          point: LatLng(pos.latitude, pos.longitude),
+                          width: 54,
+                          height: 54,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: context.z.amber,
+                              border: Border.all(
+                                color: context.z.surface,
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: context.z.amber.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                  blurRadius: 12,
+                                  spreadRadius: 3,
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: ZVehicleArt(
+                              kind: d.vehicleKind,
+                              width: 36,
+                              color: context.z.onAmber,
+                              background: context.z.amber,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  const RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution(MapEndpoints.attribution),
+                    ],
+                  ),
                 ],
               ),
 
               _topBar(theme, d),
 
-              // **زرّ القنّاص.** فوق اللوحة السفلية بمسافةٍ كافية.
-              Positioned(
-                bottom: 240,
-                left: 16,
-                child: FloatingActionButton.small(
-                  heroTag: 'locate',
-                  onPressed: _locating ? null : _locateMe,
-                  backgroundColor: theme.colorScheme.surface,
-                  child: _locating
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2.2),
-                        )
-                      : Icon(Icons.my_location,
-                          color: theme.colorScheme.primary),
-                ),
-              ),
               // **بطاقةٌ عائمة تحت الشريط لا شريطٌ فوقه.** كان
               // التنبيه ملتصقاً بأعلى الشاشة يغطّي شريط التطبيق نفسه،
               // فيبدو عطلاً في الواجهة لا تنبيهاً مقصوداً — ويُتجاهَل
@@ -369,9 +468,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(now.healthy
-                      ? 'تمّ — جهازك جاهز الآن'
-                      : 'لم يكتمل بعد — راجع الخطوات غير المعلَّمة بالأخضر'),
+                  content: Text(
+                    now.healthy
+                        ? 'تمّ — جهازك جاهز الآن'
+                        : 'لم يكتمل بعد — راجع الخطوات غير المعلَّمة بالأخضر',
+                  ),
                 ),
               );
             }
@@ -381,41 +482,69 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     );
   }
 
+  /// الاسم الأول وحده — «محمد» لا «محمد أيوب علي»: الشريط ضيّق، والرصيد
+  /// بجانبه أهمّ من اللقب.
+  static String _firstName(String? full) {
+    final t = (full ?? '').trim();
+    if (t.isEmpty) return 'كابتن زنبور';
+    return t.split(RegExp(r'\s+')).first;
+  }
+
   Widget _topBar(ThemeData theme, DriverRecord d) {
+    final me = ref.watch(accountProvider).value;
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,
       left: 12,
       right: 12,
-      child: Material(
-        elevation: 3,
-        borderRadius: BorderRadius.circular(14),
-        color: theme.colorScheme.surface,
+      // **زجاجٌ لا سطحٌ معتم.** الشريط يطفو فوق خريطةٍ حيّة؛ وسطحٌ أبيض
+      // يقطعها ويُخفي ما تحته. والزجاج يُبقي الشارع مرئياً ويقول للعين
+      // إن هذا الشريط طبقةٌ فوق الخريطة لا جزءٌ منها.
+      child: ZGlass(
+        radius: 18,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
-              Icon(Icons.account_balance_wallet_outlined,
-                  color: d.walletBalance < 0
-                      ? ZanbourTheme.warning
-                      : theme.colorScheme.primary),
+              // **وجهُ السائق واسمه أوّلاً** — `.hd` في المحاكي. الصورة هي
+              // صورته الحيّة من التسجيل (`profiles.avatar_url`، 0019)،
+              // برابطٍ موقّع لا عام. والرصيد باقٍ بنصّه تحت الاسم.
+              PartyAvatar(storagePath: me?['avatar_url'] as String?, radius: 21),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      d.walletBalance < 0
-                          ? 'عليك ${d.walletBalance.abs().round()} دينار'
-                          : '${d.walletBalance.round()} دينار',
+                      _firstName(me?['full_name'] as String?),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    Text(
-                      d.bonusBalance > 0
-                          ? 'هدية ${d.bonusBalance.round()} دينار'
-                          : d.walletBalance < 0
-                              ? 'عمولات مستحقة'
-                              : 'رصيد المحفظة',
+                    Text.rich(
+                      TextSpan(children: [
+                        TextSpan(
+                          text: d.walletBalance < 0
+                              ? 'عليك ${d.walletBalance.abs().round()} دينار'
+                              : '${d.walletBalance.round()} دينار',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: d.walletBalance < 0
+                                ? context.z.warn
+                                : theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const TextSpan(text: ' · '),
+                        TextSpan(
+                          text: d.bonusBalance > 0
+                              ? 'هدية ${d.bonusBalance.round()} دينار'
+                              : d.walletBalance < 0
+                                  ? 'عمولات مستحقة'
+                                  : 'رصيد المحفظة',
+                        ),
+                      ]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant),
                     ),
@@ -445,7 +574,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                   } else if (v == 'push-setup') {
                     // الورقة نفسها التي تفتحها البطاقة الحمراء — لا
                     // شاشةً تقنية تعرض «تطابق الرمزين».
-                    await _openPushSetup(ref.read(pushDiagnosticsProvider).value);
+                    await _openPushSetup(
+                      ref.read(pushDiagnosticsProvider).value,
+                    );
                   } else if (context.mounted) {
                     context.push(v);
                   }
@@ -535,16 +666,18 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.local_shipping_outlined,
-              color: theme.colorScheme.primary),
+          Icon(Icons.local_shipping_outlined, color: theme.colorScheme.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('مندوب ستوتة',
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                Text(
+                  'مندوب ستوتة',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 3),
                 Text(
                   'تصلك طلبات المتاجر التي تطلب ستوتة وحدها — '
@@ -610,38 +743,18 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     );
   }
 
-  /// رسالة الإدارة مكان المفتاح المغلق.
-  Widget _closedNotice(ThemeData theme, IconData icon, String message) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 24, color: theme.colorScheme.outline),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              message.isEmpty ? 'هذه الخدمة متوقّفة مؤقّتاً.' : message,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// مفتاحا الخدمة — متساويان في الحجم وفي الوزن.
   ///
   /// **الاتصال نتيجتهما لا سببهما.** كان زرٌّ كبير مكتوبٌ عليه «ابدأ
   /// الاستقبال» لا يقول أيّ استقبال، ومفتاحٌ صغير للتسوّق تحته — فيظنّ
   /// السائق أن الكبير يحكم الصغير. فمن فتح واحداً فهو متصل، ومن أغلق
   /// الاثنين فهو غير متصل. ولا زرَّ ثالثاً يحكمهما.
-  Widget _serviceSwitch({
+  /// مربّع خدمة — يُضغط ليُفتح أو يُغلق.
+  ///
+  /// **الحالة تُقرأ من بعيد.** المفتوح كهرمانيٌّ بحدٍّ سميك وأيقونةٍ
+  /// ملوّنة؛ والمغلق باهتٌ بحدٍّ رفيع. يُميَّزان بنظرةٍ واحدة على دراجةٍ
+  /// متحرّكة، لا بقراءة سطرٍ تحت كل مفتاح.
+  Widget _serviceTile({
     required ThemeData theme,
     required IconData icon,
     required String title,
@@ -650,29 +763,130 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     required bool value,
     required Future<void> Function(bool) apply,
   }) {
-    final busy = _busy;
+    final scheme = theme.colorScheme;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: value
-            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
-            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(14),
+    return Expanded(
+      child: Tooltip(
+        message: value ? on : off,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            onTap: _busy ? null : () => _setService(apply, !value),
+            borderRadius: BorderRadius.circular(18),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+              decoration: BoxDecoration(
+                color: value
+                    ? scheme.primary.withValues(alpha: 0.16)
+                    : scheme.onSurface.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: value
+                      ? scheme.primary.withValues(alpha: 0.65)
+                      : scheme.onSurface.withValues(alpha: 0.09),
+                  width: value ? 1.6 : 1,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: value
+                          ? scheme.primary.withValues(alpha: 0.24)
+                          : scheme.onSurface.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 20,
+                      color: value ? scheme.primary : scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 11.5,
+                      height: 1.25,
+                      fontWeight: value ? FontWeight.w700 : FontWeight.w400,
+                      color: value ? scheme.onSurface : scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-      child: SwitchListTile(
-        value: value,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        secondary: Icon(icon,
-            size: 26,
-            color: value
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurfaceVariant),
-        title: Text(title,
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold)),
-        subtitle: Text(value ? on : off, style: theme.textTheme.bodySmall),
-        onChanged: busy ? null : (v) => _setService(apply, v),
+    );
+  }
+
+  /// مربّع خدمةٍ أغلقتها الإدارة — برسالتها لا برماديٍّ صامت.
+  Widget _closedTile(
+    ThemeData theme,
+    IconData icon,
+    String title,
+    String message,
+  ) {
+    final scheme = theme.colorScheme;
+
+    return Expanded(
+      child: Tooltip(
+        // **النصّ الافتراضي كما كان.** الإدارة قد تُغلق خدمةً بلا رسالة،
+        // فيبقى للسائق جوابٌ بدل فراغ.
+        message: message.isEmpty ? 'هذه الخدمة متوقّفة مؤقّتاً.' : message,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+          decoration: BoxDecoration(
+            color: scheme.onSurface.withValues(alpha: 0.03),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: scheme.onSurface.withValues(alpha: 0.06)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: scheme.onSurface.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 20, color: scheme.outline),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 11.5,
+                  height: 1.25,
+                  color: scheme.outline,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'متوقّفة',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 10,
+                  color: scheme.outline,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -685,7 +899,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   /// حالةً في القاعدة وحدها. وسائقٌ حالته `online` بلا موقعٍ محدَّث
   /// يُستبعد من البحث — فيبدو متصلاً ولا تصله طلبات.
   Future<void> _setService(
-      Future<void> Function(bool) apply, bool value) async {
+    Future<void> Function(bool) apply,
+    bool value,
+  ) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -696,7 +912,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       await apply(value);
 
       final d = await ref.refresh(driverRecordProvider.future);
-      final services = ref.read(serviceStatusProvider).value ??
+      final services =
+          ref.read(serviceStatusProvider).value ??
           const ServiceAvailability.open();
       final any = d?.wantsWork(services) ?? false;
 
@@ -715,152 +932,666 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     if (target != null && mounted) await _toggleOnline(target);
   }
 
+  /// الرصيد تحت الأرضية — طلبه علي: «توقفت عن قبول الطلبات بسبب انتهاء
+  /// الرصيد».
+  ///
+  /// **كان السائق يكتشف ذلك بصمت:** يبقى متّصلاً ولا يصله شيء، أو يضغط
+  /// «متّصل» فيُرفض برسالةٍ تختفي. الآن السبب أوّل ما يراه، ولمسةٌ تأخذه إلى
+  /// الشحن. والقرار من القاعدة (`my_order_blocks`) — الأرضية نفسها التي
+  /// يفحصها البحث عن سائقين.
+  Widget _walletBlockCard() {
+    final b = ref.watch(orderBlocksProvider).value;
+    if (b == null || b['wallet_blocked'] != true) {
+      return const SizedBox.shrink();
+    }
+    final z = context.z;
+    final bal = (b['wallet_balance'] as num?)?.round() ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: z.bad.withValues(alpha: 0.12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ZanbourTheme.rLg),
+          side: BorderSide(color: z.bad.withValues(alpha: 0.5)),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(ZanbourTheme.rLg),
+          onTap: () => context.push('/wallet'),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Row(
+              children: [
+                ZIconTile(Icons.account_balance_wallet, color: z.bad),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('توقفت عن قبول الطلبات بسبب انتهاء الرصيد',
+                          style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: z.bad)),
+                      Text('رصيدك $bal دينار — اشحن رصيدك لتعود',
+                          style: TextStyle(fontSize: 12, color: z.inkDim)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_left, color: z.bad),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// مستحقات المتاجر — بطاقةٌ حمراء فوق كلّ شيء، **ما دام عليه شيء**.
+  ///
+  /// **دَينٌ لا يُرى يُنسى.** كانت المستحقات خلف القائمة (⋮) في شاشةٍ لا
+  /// يفتحها إلا من تذكّر؛ والتاجر ينتظر ماله ويتّصل بالدعم. الآن يراها
+  /// السائق كلّما فتح التطبيق، بالمجموع كاملاً، ولمسةٌ تأخذه إلى القائمة.
+  ///
+  /// **والمجموع من الحساب نفسه الذي في الشاشة:** المزوّد نفسه، والمفتوحة
+  /// وحدها (`settle_status` ليس `closed`)، وثمن السلع `goods_actual_iqd`.
+  /// فلا يقول الرقم هنا شيئاً والقائمة شيئاً آخر. ويختفي إن لم يبقَ دَين.
+  Widget _storeDuesCard() {
+    final rows = ref.watch(storeDuesProvider).value ?? const [];
+    final open = rows.where((r) => r['settle_status'] != 'closed').toList();
+    final owed = open.fold<num>(
+        0, (a, r) => a + ((r['goods_actual_iqd'] as num?) ?? 0));
+    if (owed <= 0) return const SizedBox.shrink();
+
+    final z = context.z;
+    final blocked =
+        ref.watch(orderBlocksProvider).value?['dues_blocked'] == true;
+    final stores =
+        open.map((r) => r['store_phone'] ?? r['shop_name']).toSet();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: z.bad.withValues(alpha: 0.10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ZanbourTheme.rLg),
+          side: BorderSide(color: z.bad.withValues(alpha: 0.45)),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(ZanbourTheme.rLg),
+          onTap: () => context.push('/store-dues'),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Row(
+              children: [
+                ZIconTile(Icons.storefront, color: z.bad),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // **حين تبلغ الحدّ يصير العنوان هو السبب** — لا بطاقةٌ
+                      // ثانية فوقها تقول الشيء نفسه.
+                      Text(
+                          blocked
+                              ? 'توقفت الطلبات لحين إرجاع المستحقات إلى المتاجر'
+                              : 'مستحقات المتاجر',
+                          style: TextStyle(
+                              fontSize: blocked ? 13.5 : 15,
+                              fontWeight: FontWeight.w700,
+                              color: blocked ? z.bad : z.ink)),
+                      Text(
+                        blocked
+                            ? 'مستحقات المتاجر — اضغط للتسوية'
+                            : stores.length == 1
+                                ? 'لمتجرٍ واحد — اضغط للتسوية'
+                                : 'لـ${stores.length} متاجر — اضغط للتسوية',
+                        style: TextStyle(fontSize: 12, color: z.inkDim),
+                      ),
+                    ],
+                  ),
+                ),
+                ZCountUp(
+                  owed,
+                  suffix: ' دينار',
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: z.bad),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_left, color: z.bad),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// بطاقة الاتصال — `.shift` في المحاكي.
+  ///
+  /// **كهرمانيةٌ حين يتّصل، ساكنةٌ حين ينقطع.** السائق يلمح هاتفه على
+  /// المقود ثانيةً واحدة؛ ولونُ البطاقة يجيبه «هل تصلني الطلبات؟» قبل أن
+  /// يقرأ حرفاً. ومركبته فيها تطفو ما دام متّصلاً.
+  ///
+  /// **لا زرَّ فيها.** الاتصال نتيجة المربّعات تحتها لا مفتاحٌ مستقلّ —
+  /// انظر التعليق في آخر اللوح. فالبطاقة تعرض ولا تتحكّم.
+  ///
+  /// وأرباح اليوم من `my_earnings` — المصدر نفسه لقسم «اليوم» في
+  /// «رحلاتي»، فلا يختلف الرقمان.
+  Widget _connectionCard(ThemeData theme, DriverRecord d, bool online) {
+    final z = context.z;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final earned = ref
+        .watch(
+          earningsProvider((
+            from: today,
+            to: today.add(const Duration(days: 1)),
+          )),
+        )
+        .value;
+
+    final fg = online ? z.onAmber : z.ink;
+    final dim = online ? z.onAmber.withValues(alpha: 0.72) : z.inkDim;
+
+    Widget metric(Widget value, String label) => Expanded(
+      child: Column(
+        children: [
+          DefaultTextStyle.merge(
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+            child: value,
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 11, color: dim)),
+        ],
+      ),
+    );
+
+    Widget sep() => Container(
+      width: 1,
+      height: 30,
+      color: online ? z.onAmber.withValues(alpha: 0.22) : z.line,
+    );
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 340),
+      curve: const Cubic(0.22, 0.9, 0.3, 1),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(ZanbourTheme.rXl),
+        gradient: online
+            ? LinearGradient(
+                begin: AlignmentDirectional.topStart,
+                end: AlignmentDirectional.bottomEnd,
+                colors: [z.amber2, z.amber, const Color(0xFFE09B00)],
+                stops: const [0, 0.55, 1],
+              )
+            : null,
+        color: online ? null : z.surface,
+        border: online ? null : Border.all(color: z.line),
+        boxShadow: online
+            ? [
+                BoxShadow(
+                  color: z.amber.withValues(alpha: 0.34),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ]
+            : null,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              ZFloat(
+                enabled: online,
+                child: Opacity(
+                  opacity: online ? 1 : 0.45,
+                  child: ZVehicleArt(kind: d.vehicleKind, width: 76, color: fg),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: online
+                                ? z.onAmber
+                                : theme.colorScheme.outline,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            d.status.label,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: fg,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.star,
+                          size: 16,
+                          color: online ? z.onAmber : z.amber,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          d.ratingAvg.toStringAsFixed(1),
+                          style: TextStyle(color: fg),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          '${d.tripsCompleted} رحلة',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: dim,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              metric(ZCountUp(earned?.trips ?? 0), 'رحلات اليوم'),
+              sep(),
+              metric(ZCountUp(earned?.gross ?? 0), 'أجور اليوم · دينار'),
+              sep(),
+              metric(ZCountUp(earned?.net ?? 0), 'صافي اليوم · دينار'),
+            ],
+          ),
+          _incentiveStrip(online),
+        ],
+      ),
+    );
+  }
+
+  /// أقرب حافزٍ إلى الاكتمال — حلقةٌ صغيرة وجملةٌ واحدة.
+  ///
+  /// **السائق الذي يرى هدفه قريباً يبقى متّصلاً ساعةً أخرى.** والحافز كان
+  /// في شاشةٍ خلف القائمة، لا يراه إلا من تذكّر أن يفتحها.
+  ///
+  /// **أقربُ طبقةٍ لم تُكسب، من الحوافز التي فعّلها وحدها.** غير المفعَّل
+  /// لا تُحسب رحلاته له أصلاً (0108)، فعرضه يعِد بما لن يأتي. ويختفي
+  /// الشريط كلّه إن لم يكن له حافزٌ مفعَّل — لا مساحة فارغة.
+  /// **أماكن الذروة على خريطته** — من حوافز الأماكن التي فعّلها (0135).
+  ///
+  /// دائرةٌ كهرمانية بحجم المكان واسمه فوقها: يعرف أين يقف لتُحسب ساعاته.
+  /// والخادم يحسبها بلا هذا الرسم (التطبيق السابق يعمل) — هذا للعين فقط.
+  List<Widget> _hotspotLayers() {
+    final items = (ref.watch(myIncentivesProvider).value?['items'] as List?) ??
+        const [];
+    final spots = <Map<String, dynamic>>[
+      for (final raw in items)
+        if ((raw as Map)['activated'] == true)
+          for (final h in (raw['hotspots'] as List?) ?? const [])
+            Map<String, dynamic>.from(h as Map),
+    ];
+    if (spots.isEmpty) return const [];
+    final z = context.z;
+    LatLng at(Map<String, dynamic> h) =>
+        LatLng((h['lat'] as num).toDouble(), (h['lng'] as num).toDouble());
+    return [
+      CircleLayer(circles: [
+        for (final h in spots)
+          CircleMarker(
+            point: at(h),
+            radius: (h['radius_m'] as num?)?.toDouble() ?? 500,
+            useRadiusInMeter: true,
+            color: z.amber.withValues(alpha: 0.18),
+            borderColor: z.amber,
+            borderStrokeWidth: 2,
+          ),
+      ]),
+      MarkerLayer(markers: [
+        for (final h in spots)
+          Marker(
+            point: at(h),
+            width: 160,
+            height: 30,
+            child: Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: z.amber,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '🔥 ${h['name']}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: z.onAmber,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+      ]),
+    ];
+  }
+
+  Widget _incentiveStrip(bool online) {
+    final items = (ref.watch(myIncentivesProvider).value?['items'] as List?) ??
+        const [];
+
+    Map<String, dynamic>? best;
+    var bestRatio = -1.0;
+    for (final raw in items) {
+      final it = Map<String, dynamic>.from(raw as Map);
+      if (it['activated'] != true) continue;
+      final trips = (it['trips'] as num?)?.toDouble() ?? 0;
+      final hours = (it['hours'] as num?)?.toDouble() ?? 0;
+      for (final t in (it['tiers'] as List?) ?? const []) {
+        final tier = Map<String, dynamic>.from(t as Map);
+        if (tier['earned'] == true) continue;
+        final needT = (tier['trips_required'] as num?)?.toDouble() ?? 0;
+        final needH = (tier['hours_required'] as num?)?.toDouble() ?? 0;
+        final ratios = [
+          if (needT > 0) (trips / needT).clamp(0.0, 1.0),
+          if (needH > 0) (hours / needH).clamp(0.0, 1.0),
+        ];
+        if (ratios.isEmpty) continue;
+        final r = ratios.reduce((a, b) => a < b ? a : b);
+        if (r > bestRatio) {
+          bestRatio = r;
+          best = {
+            'ratio': r,
+            'reward': (tier['reward_iqd'] as num?)?.round() ?? 0,
+            'leftTrips': needT > 0 ? (needT - trips).ceil().clamp(0, 9999) : 0,
+            'leftHours': needH > 0 ? (needH - hours).clamp(0.0, 9999.0) : 0.0,
+          };
+        }
+        break; // الطبقات مرتّبة: أوّل ما لم يُكسب هو التالي
+      }
+    }
+    if (best == null) return const SizedBox.shrink();
+
+    final z = context.z;
+    final fg = online ? z.onAmber : z.ink;
+    final leftT = best['leftTrips'] as int;
+    final leftH = best['leftHours'] as double;
+    final left = [
+      if (leftT > 0) 'باقي $leftT ${leftT == 1 ? 'رحلة' : 'رحلات'}',
+      if (leftH > 0) 'باقي ${leftH.toStringAsFixed(leftH % 1 == 0 ? 0 : 1)} ساعة',
+    ].join(' و');
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Material(
+        color: online
+            ? z.onAmber.withValues(alpha: 0.10)
+            : z.amberWash,
+        borderRadius: BorderRadius.circular(ZanbourTheme.r),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(ZanbourTheme.r),
+          onTap: () => context.push('/incentives'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: best['ratio'] as double),
+                    duration: const Duration(milliseconds: 900),
+                    curve: const Cubic(0.2, 0.9, 0.25, 1),
+                    builder: (_, v, _) => CircularProgressIndicator(
+                      value: v,
+                      strokeWidth: 4,
+                      color: online ? z.onAmber : z.amber,
+                      backgroundColor: (online ? z.onAmber : z.amber)
+                          .withValues(alpha: 0.18),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '$left لمكافأة ${best['reward']} دينار',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: fg),
+                  ),
+                ),
+                Icon(Icons.chevron_left, size: 18, color: fg),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _bottomPanel(ThemeData theme, DriverRecord d, bool online) {
-    final services = ref.watch(serviceStatusProvider).value ??
+    final services =
+        ref.watch(serviceStatusProvider).value ??
         const ServiceAvailability.open();
 
     return Positioned(
       left: 0,
       right: 0,
       bottom: 0,
-      child: Material(
-        elevation: 8,
-        color: theme.colorScheme.surface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: online
-                            ? ZanbourTheme.success
-                            : theme.colorScheme.outline,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(d.status.label,
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold)),
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.star, size: 16, color: Colors.amber),
-                        const SizedBox(width: 4),
-                        Text(d.ratingAvg.toStringAsFixed(1)),
-                        const SizedBox(width: 12),
-                        Text('${d.tripsCompleted} رحلة',
-                            style: theme.textTheme.bodySmall),
-                      ],
-                    ),
-                  ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // **زرّ القنّاص فوق اللوح مباشرةً لا في موضعٍ ثابت.** كان على
+          // ارتفاعٍ مكتوب (٢٤٠)، واللوح يطول ويقصر: بطاقة الاتصال وخيارات
+          // التكتك ورسالة الخطأ — فيختفي الزرّ تحته أحياناً. هنا يتبعه.
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: FloatingActionButton.small(
+                heroTag: 'locate',
+                onPressed: _locating ? null : _locateMe,
+                // شفافٌ فوق الخريطة كبقية الطبقات العائمة.
+                backgroundColor: theme.colorScheme.surface.withValues(
+                  alpha: 0.86,
                 ),
-
-                const SizedBox(height: 14),
-
-                // **المغلقة تُخفى ومكانها رسالة الإدارة.** مفتاحٌ
-                // رماديّ سؤالٌ بلا جواب: يضغطه السائق فلا يقع شيء،
-                // فيظنّ التطبيق معطوباً ويتصل بالدعم.
-                // **سائق الستوتة لا يرى مفتاحَي الركّاب والتسوّق.**
-                // القاعدة تثبّتهما مغلقَين (0105)، ومفتاحٌ لا يعمل أسوأ من
-                // مفتاحٍ غائب: يضغطه فلا يقع شيء فيظنّ التطبيق معطوباً.
-                if (d.isStoota)
-                  _stootaNotice(theme)
-                else if (!services.rides)
-                  _closedNotice(theme, Icons.person_outline,
-                      services.ridesMessage)
-                else
-                _serviceSwitch(
-                  theme: theme,
-                  icon: Icons.person_outline,
-                  title: 'طلبات الركّاب',
-                  on: 'تصلك طلبات نقل الركّاب',
-                  off: 'لا تصلك طلبات ركّاب',
-                  value: d.acceptsRides,
-                  apply: ref.read(driverRepositoryProvider).setAcceptsRides,
-                ),
-
-                if (!d.isStoota && !services.shopping)
-                  _closedNotice(theme, Icons.shopping_basket_outlined,
-                      services.shoppingMessage)
-                else if (!d.isStoota)
-                _serviceSwitch(
-                  theme: theme,
-                  icon: Icons.shopping_basket_outlined,
-                  title: 'طلبات التسوّق',
-                  on: d.isTuktuk
-                      ? 'تشتري بمالك وتستردّه نقداً — بأجرة الدراجة'
-                      : 'تشتري بمالك وتستردّه نقداً عند التسليم',
-                  off: 'لا تصلك طلبات تسوّق',
-                  value: d.acceptsShopping,
-                  apply: ref.read(driverRepositoryProvider).setAcceptsShopping,
-                ),
-
-                // خيار التكتك يتبع «طلبات الركّاب» لا التسوّق.
-                if (d.isTuktuk && d.acceptsRides) _tuktukOption(theme, d),
-
-                if (!services.delivery)
-                  _closedNotice(theme, Icons.local_shipping_outlined,
-                      services.deliveryMessage)
-                else
-                _serviceSwitch(
-                  theme: theme,
-                  icon: Icons.local_shipping_outlined,
-                  title: 'طلبات التوصيل',
-                  on: 'طرودٌ من المتاجر — قد تدفع ثمن السلعة مقدّماً',
-                  off: 'لا تصلك طلبات توصيل',
-                  value: d.acceptsDelivery,
-                  apply: ref.read(driverRepositoryProvider).setAcceptsDelivery,
-                ),
-
-                // **داخل قسم التوصيل، مستقلاً عن خيار الرحلات أعلاه.**
-                // طلب التكتك يصله دائماً؛ وهذا يفتح له طرود الدراجة.
-                if (d.isTuktuk && d.acceptsDelivery && services.delivery)
-                  _tuktukDeliveryOption(theme, d),
-
-                if (_error != null) ...[
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline,
-                            size: 18,
-                            color: theme.colorScheme.onErrorContainer),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(_error!,
-                              style: TextStyle(
-                                  color: theme.colorScheme.onErrorContainer)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // **لا زرَّ اتصالٍ منفصل.** كان يقول «ابدأ الاستقبال»
-                // بلا أن يقول أيّ استقبال، ويبدو حاكماً للمفتاحين تحته
-                // وليس كذلك. فصار الاتصال نتيجتهما وحدهما.
-              ],
+                elevation: 2,
+                child: _locating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2.2),
+                      )
+                    : Icon(Icons.my_location, color: theme.colorScheme.primary),
+              ),
             ),
           ),
-        ),
+          // اللوح زجاجيٌّ أيضاً: الخريطة تبقى حاضرةً تحته، فيبدو لوحاً يعلو
+          // الشارع لا جداراً يسدّه.
+          ZGlass(
+            radius: 28,
+            topOnly: true,
+            blur: 26,
+            opacity: 0.80,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // مقبضٌ يقول إن هذا لوحٌ يعلو الخريطة لا حافّة شاشة.
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 14),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.outline,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                    ),
+                    _walletBlockCard(),
+                _storeDuesCard(),
+                _connectionCard(theme, d, online),
+
+                    const SizedBox(height: 14),
+
+                    // ═══ الخدمات — مربّعاتٌ في صفّ ═══
+                    //
+                    // **ثلاثة صفوفٍ بمفاتيح كانت تأكل نصف الشاشة** وتدفع
+                    // الخريطة خارجها، والسائق يحتاج أن يرى شارعه. والمربّع
+                    // يقول الشيء نفسه في ثلث المساحة: أيقونةٌ واسمٌ وحالةٌ
+                    // تُقرأ باللون — والوصف الكامل يبقى بالضغط المطوّل، فلا
+                    // تضيع كلمةٌ كُتبت للسائق.
+                    //
+                    // **وترتيب الشروط كما كان حرفاً بحرف.** المغلقة تُخفى
+                    // ومكانها رسالة الإدارة؛ ومفتاحٌ رماديّ سؤالٌ بلا جواب:
+                    // يضغطه السائق فلا يقع شيء فيظنّ التطبيق معطوباً ويتصل
+                    // بالدعم. وسائق الستوتة لا يرى ما ثبّتته القاعدة مغلقاً
+                    // (0105).
+                    if (d.isStoota)
+                      _stootaNotice(theme)
+                    else ...[
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (!services.rides)
+                              _closedTile(
+                                theme,
+                                Icons.person_outline,
+                                'طلبات الركّاب',
+                                services.ridesMessage,
+                              )
+                            else
+                              _serviceTile(
+                                theme: theme,
+                                icon: Icons.person_outline,
+                                title: 'طلبات الركّاب',
+                                on: 'تصلك طلبات نقل الركّاب',
+                                off: 'لا تصلك طلبات ركّاب',
+                                value: d.acceptsRides,
+                                apply: ref
+                                    .read(driverRepositoryProvider)
+                                    .setAcceptsRides,
+                              ),
+                            const SizedBox(width: 8),
+                            if (!services.shopping)
+                              _closedTile(
+                                theme,
+                                Icons.shopping_basket_outlined,
+                                'طلبات التسوّق',
+                                services.shoppingMessage,
+                              )
+                            else
+                              _serviceTile(
+                                theme: theme,
+                                icon: Icons.shopping_basket_outlined,
+                                title: 'طلبات التسوّق',
+                                on: d.isTuktuk
+                                    ? 'تشتري بمالك وتستردّه نقداً — بأجرة الدراجة'
+                                    : 'تشتري بمالك وتستردّه نقداً عند التسليم',
+                                off: 'لا تصلك طلبات تسوّق',
+                                value: d.acceptsShopping,
+                                apply: ref
+                                    .read(driverRepositoryProvider)
+                                    .setAcceptsShopping,
+                              ),
+                            const SizedBox(width: 8),
+                            if (!services.delivery)
+                              _closedTile(
+                                theme,
+                                Icons.local_shipping_outlined,
+                                'طلبات التوصيل',
+                                services.deliveryMessage,
+                              )
+                            else
+                              _serviceTile(
+                                theme: theme,
+                                icon: Icons.local_shipping_outlined,
+                                title: 'طلبات التوصيل',
+                                on: 'طرودٌ من المتاجر — قد تدفع ثمن السلعة مقدّماً',
+                                off: 'لا تصلك طلبات توصيل',
+                                value: d.acceptsDelivery,
+                                apply: ref
+                                    .read(driverRepositoryProvider)
+                                    .setAcceptsDelivery,
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      // خيار التكتك يتبع «طلبات الركّاب» لا التسوّق.
+                      if (d.isTuktuk && d.acceptsRides) _tuktukOption(theme, d),
+
+                      // **داخل قسم التوصيل، مستقلاً عن خيار الرحلات أعلاه.**
+                      // طلب التكتك يصله دائماً؛ وهذا يفتح له طرود الدراجة.
+                      if (d.isTuktuk && d.acceptsDelivery && services.delivery)
+                        _tuktukDeliveryOption(theme, d),
+                    ],
+
+                    if (_error != null) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 18,
+                              color: theme.colorScheme.onErrorContainer,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onErrorContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // **لا زرَّ اتصالٍ منفصل.** كان يقول «ابدأ الاستقبال»
+                    // بلا أن يقول أيّ استقبال، ويبدو حاكماً للمفتاحين تحته
+                    // وليس كذلك. فصار الاتصال نتيجتهما وحدهما.
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

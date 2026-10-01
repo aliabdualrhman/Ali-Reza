@@ -1,3 +1,5 @@
+import 'settings.dart';
+
 /// تحقّق من صحة مدخلات النماذج، برسائل عربية.
 ///
 /// **قاعدة مهمة:** كل قاعدة هنا لها نظير في قاعدة البيانات. التحقق في
@@ -77,6 +79,15 @@ class Validators {
     }
     if (normalizePhone(s) != null) return null;
     return 'أدخل رقماً عراقياً أو بريداً صحيحاً';
+  }
+
+  /// حقل الدخول بحسب مفتاح البريد (0139): رقمٌ وحده إن أُطفئ البريد.
+  static String? loginIdentifier(String? v) {
+    if (AuthFlags.emailEnabled) return emailOrPhone(v);
+    final s = normalizeEmail(v);
+    if (s.isEmpty) return 'رقم الهاتف مطلوب';
+    if (normalizePhone(s) != null) return null;
+    return 'أدخل رقم هاتفك — مثال: 07701234567';
   }
 
   // ---------------------------------------------------------------------------

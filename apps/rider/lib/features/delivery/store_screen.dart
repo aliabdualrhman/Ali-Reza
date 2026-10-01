@@ -145,7 +145,7 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                 if (s['pending_changes'] != null)
                   _Note(
                     icon: Icons.hourglass_top,
-                    color: ZanbourTheme.warning,
+                    color: context.z.warn,
                     text: 'تعديلك بانتظار موافقة الإدارة. متجرك يعمل '
                         'ببياناته الحالية حتى يُعتمد.',
                   )
@@ -256,7 +256,7 @@ class StoreStatusBanner extends StatelessWidget {
         switch ('${store['status']}') {
       'approved' => (
           Icons.verified,
-          ZanbourTheme.success,
+          context.z.ok,
           'متجرك معتمد',
           'تستطيع طلب مندوب الآن.',
         ),
@@ -275,7 +275,7 @@ class StoreStatusBanner extends StatelessWidget {
         ),
       _ => (
           Icons.hourglass_top,
-          ZanbourTheme.warning,
+          context.z.warn,
           'بانتظار موافقة الإدارة',
           'نراجع متجرك ونخبرك بإشعار حين يُعتمد.',
         ),

@@ -39,7 +39,7 @@ class MyRatingsScreen extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 40),
+                      Icon(Icons.star, color: context.z.amber, size: 40),
                       const SizedBox(width: 10),
                       Text(
                         (driver?.ratingAvg ?? 5.0).toStringAsFixed(2),
@@ -78,8 +78,8 @@ class MyRatingsScreen extends ConsumerWidget {
                                   width: 18,
                                   child: Text('$s',
                                       textAlign: TextAlign.center)),
-                              const Icon(Icons.star,
-                                  size: 14, color: Colors.amber),
+                              Icon(Icons.star,
+                                  size: 14, color: context.z.amber),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: ClipRRect(
@@ -136,8 +136,8 @@ class MyRatingsScreen extends ConsumerWidget {
                         leading: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star,
-                                size: 18, color: Colors.amber),
+                            Icon(Icons.star,
+                                size: 18, color: context.z.amber),
                             const SizedBox(width: 4),
                             Text('${r['stars']}'),
                           ],

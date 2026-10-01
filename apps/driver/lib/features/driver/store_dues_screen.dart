@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zanbour_core/zanbour_core.dart';
 
 import 'driver_repository.dart';
@@ -7,6 +8,18 @@ import 'driver_repository.dart';
 final storeDuesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>(
   (ref) => ref.watch(driverRepositoryProvider).storeDues(),
 );
+
+/// سببا إيقاف الطلبات كما تراهما القاعدة (0133): الرصيد تحت الأرضية،
+/// ومستحقات المتاجر فوق الحدّ.
+///
+/// **من القاعدة لا من حسابٍ هنا.** الحدود في الإعدادات والمناطق يغيّرها
+/// المدير؛ ولو حسبها التطبيق لقال «أنت متوقّف» والقاعدة ترسل له طلبات، أو
+/// العكس. `my_order_blocks` هي القاعدة نفسها التي يقرؤها البحث عن سائقين.
+final orderBlocksProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final v = await Supabase.instance.client.rpc('my_order_blocks');
+  return v == null ? const {} : Map<String, dynamic>.from(v as Map);
+});
 
 /// مستحقات المتاجر — ثمن السلع التي قبضها المندوب من المستلمين في طلبات
 /// «يُعاد الثمن بعد التسليم»، ولم يُسلّمها للمتجر بعد.
@@ -55,7 +68,7 @@ class StoreDuesScreen extends ConsumerWidget {
                         Text('${owed.round()} دينار',
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: owed > 0 ? ZanbourTheme.warning : null,
+                              color: owed > 0 ? context.z.warn : null,
                             )),
                       ],
                     ),
@@ -143,10 +156,10 @@ class _DueTileState extends ConsumerState<_DueTile> {
     final amount = ((r['goods_actual_iqd'] as num?) ?? 0).round();
 
     final (label, color) = switch (status) {
-      'open' => ('لم يُسلَّم', ZanbourTheme.warning),
+      'open' => ('لم يُسلَّم', context.z.warn),
       'claimed' => ('بانتظار تأكيد المتجر', theme.colorScheme.primary),
       'disputed' => ('المتجر يقول لم يصله', theme.colorScheme.error),
-      _ => ('أُغلق', ZanbourTheme.success),
+      _ => ('أُغلق', context.z.ok),
     };
 
     return Card(

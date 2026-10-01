@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'theme.dart';
+
 /// تفصيل ما يدفعه الراكب — لا رقمٌ واحدٌ مبهم.
 ///
 /// **الرقم الواحد كان يكفي في التوصيل ولا يكفي في التسوّق.** الراكب
@@ -119,7 +121,7 @@ class FareBreakdown extends StatelessWidget {
             '${value.round()} دينار',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
-              color: good ? Colors.green.shade700 : null,
+              color: good ? (theme.extension<ZColors>() ?? ZColors.light).ok : null,
             ),
           ),
         ],

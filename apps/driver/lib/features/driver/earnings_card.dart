@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zanbour_core/zanbour_core.dart';
 
+import '../auth/auth_repository.dart' show supabaseProvider;
 import 'driver_repository.dart';
 
 /// الفترة المطلوبة: من (شاملة) إلى (غير شاملة)، بالتوقيت المحلي.
@@ -13,6 +14,16 @@ final earningsProvider = FutureProvider.autoDispose
     .family<Earnings, EarningsRange>(
   (ref, r) => ref.watch(driverRepositoryProvider).earnings(r.from, r.to),
 );
+
+/// أعداد طلبات السائق في الفترة نفسها — `my_trip_stats` (0134).
+final tripStatsProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, EarningsRange>((ref, r) async {
+  final rows = await ref.watch(supabaseProvider).rpc('my_trip_stats', params: {
+    'p_from': r.from.toUtc().toIso8601String(),
+    'p_to': r.to.toUtc().toIso8601String(),
+  }) as List;
+  return rows.isEmpty ? const {} : Map<String, dynamic>.from(rows.first as Map);
+});
 
 enum _Period { today, week, month, custom }
 
@@ -155,13 +166,24 @@ class _EarningsCardState extends ConsumerState<EarningsCard> {
                       Text(_iqd(e.net),
                           style: theme.textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: ZanbourTheme.success,
+                            color: context.z.ok,
                           )),
                     ],
                   ),
                 ],
               ),
             ),
+            // **أعداد الطلبات للفترة نفسها** — طلبها علي: المقبولة،
+            // والمكتملة، وما ألغاه هو، وما ألغاه الطرف الآخر. الإلغاء من
+            // جهته يُحسب عليه، ومن الطرف الآخر لا — فالفصل بينهما عدل.
+            const SizedBox(height: 16),
+            _TripStats(range: range),
+
+            // **أعمدة الأيام السبعة الأخيرة، تحت أيّ فترةٍ اختيرت.** الرقم
+            // يقول كم كسب؛ والأعمدة تقول **متى** يكسب — أيّ يومٍ يستحقّ أن
+            // يخرج فيه باكراً.
+            const SizedBox(height: 20),
+            const _WeekBars(),
           ],
         ),
       ),
@@ -190,6 +212,107 @@ class _EarningsCardState extends ConsumerState<EarningsCard> {
 
 String _iqd(num v) => '${v.round()} دينار';
 
+/// أرباح آخر سبعة أيام، عمودٌ لكلّ يوم — اليوم كهرمانيٌّ ممتلئ.
+///
+/// **من `my_earnings` يوماً يوماً، لا من قائمة الرحلات.** القائمة تقف عند
+/// خمسين رحلة فتنقص أيام السائق المشغول؛ والدالة تجمع في القاعدة (0088).
+/// سبعة نداءاتٍ صغيرة تُحفظ في المزوّد ولا تُعاد إلا بالتحديث.
+class _WeekBars extends ConsumerWidget {
+  const _WeekBars();
+
+  static const _days = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final z = context.z;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final days = [for (var i = 6; i >= 0; i--) today.subtract(Duration(days: i))];
+    final values = [
+      for (final d in days)
+        ref
+                .watch(earningsProvider(
+                    (from: d, to: d.add(const Duration(days: 1)))))
+                .value
+                ?.gross ??
+            0,
+    ];
+    final max = values.fold<num>(0, (a, b) => b > a ? b : a);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('آخر ٧ أيام',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 128,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (var i = 0; i < 7; i++)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (values[i] > 0)
+                          FittedBox(
+                            child: Text(
+                              values[i] >= 1000
+                                  ? '${(values[i] / 1000).toStringAsFixed(values[i] % 1000 == 0 ? 0 : 1)}ألف'
+                                  : '${values[i].round()}',
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: z.inkDim),
+                            ),
+                          ),
+                        const SizedBox(height: 3),
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(
+                              begin: 0,
+                              end: max == 0 ? 0 : values[i] / max),
+                          duration: Duration(milliseconds: 500 + i * 60),
+                          curve: const Cubic(0.2, 0.9, 0.25, 1),
+                          builder: (_, v, _) => Container(
+                            height: 4 + 80 * v,
+                            decoration: BoxDecoration(
+                              color: i == 6 ? z.amber : z.amberWash,
+                              borderRadius: BorderRadius.circular(6),
+                              border: i == 6
+                                  ? null
+                                  : Border.all(color: z.line),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        FittedBox(
+                          child: Text(
+                            i == 6 ? 'اليوم' : _days[days[i].weekday - 1],
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight:
+                                  i == 6 ? FontWeight.w700 : FontWeight.w500,
+                              color: i == 6 ? z.amberDeep : z.inkDim,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 String _d(DateTime d) => '${d.year}/${d.month}/${d.day}';
 
 String _rangeLabel(EarningsRange r) {
@@ -197,4 +320,50 @@ String _rangeLabel(EarningsRange r) {
   final last = r.to.subtract(const Duration(days: 1));
   if (last == r.from) return _d(r.from);
   return 'من ${_d(r.from)} إلى ${_d(last)}';
+}
+
+/// أربعة أرقام: مقبولة · مكتملة · ألغيتُها · ألغاها الطرف الآخر.
+class _TripStats extends ConsumerWidget {
+  const _TripStats({required this.range});
+
+  final EarningsRange range;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final z = context.z;
+    final s = ref.watch(tripStatsProvider(range)).value;
+    int n(String k) => (s?[k] as num?)?.toInt() ?? 0;
+
+    Widget cell(String label, int v, Color c) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: c.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                ZCountUp(v,
+                    style: TextStyle(
+                        fontSize: 19, fontWeight: FontWeight.w700, color: c)),
+                const SizedBox(height: 2),
+                FittedBox(
+                  child: Text(label,
+                      style: TextStyle(fontSize: 11, color: z.inkDim)),
+                ),
+              ],
+            ),
+          ),
+        );
+
+    return Row(
+      children: [
+        cell('مقبولة', n('accepted'), z.amberDeep),
+        cell('مكتملة', n('completed'), z.ok),
+        cell('ألغيتُها', n('cancelled_by_me'), z.bad),
+        cell('ألغاها الطرف الآخر', n('cancelled_by_other'), z.warn),
+      ],
+    );
+  }
 }

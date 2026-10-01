@@ -31,11 +31,28 @@ Future<void> _toggle(BuildContext context, WidgetRef ref,
   }
 }
 
-class IncentivesScreen extends ConsumerWidget {
+class IncentivesScreen extends ConsumerStatefulWidget {
   const IncentivesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<IncentivesScreen> createState() => _IncentivesScreenState();
+}
+
+class _IncentivesScreenState extends ConsumerState<IncentivesScreen> {
+  /// **تُجلب من جديد عند كلّ فتح.** المزوّد يبقى طوال عمر التطبيق (تقرؤه
+  /// الرئيسية)، فكان خطأٌ واحد يعلق في الشاشة حتى يُغلق التطبيق كلّه — وهو
+  /// ما رآه علي: «لا تفتح أصلاً». وفتحُها هو الذي يصرف المكافأة المستحقّة
+  /// (`my_incentives` → `evaluate_incentives`)، فالجلب الجديد يصرفها.
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      if (mounted) ref.invalidate(myIncentivesProvider);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final data = ref.watch(myIncentivesProvider);
 
@@ -43,10 +60,23 @@ class IncentivesScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('الحوافز')),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
+        // **خطأٌ بلا زرٍّ طريقٌ مسدود.** كان النصّ وحده، فلا مخرج إلا إغلاق
+        // التطبيق.
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(AppError.message(e), textAlign: TextAlign.center),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(AppError.message(e), textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton.tonalIcon(
+                  onPressed: () => ref.invalidate(myIncentivesProvider),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('إعادة المحاولة'),
+                ),
+              ],
+            ),
           ),
         ),
         data: (d) {
@@ -204,7 +234,10 @@ class _IncentiveCard extends ConsumerWidget {
                 const SizedBox(width: 20),
                 _Counter(
                     icon: Icons.timer_outlined,
-                    label: 'ساعات اتصالك',
+                    // حافز أماكن الذروة (0135): ساعاته داخل الأماكن وحدها.
+                    label: ((data['hotspots'] as List?) ?? const []).isNotEmpty
+                        ? 'ساعاتك في الأماكن'
+                        : 'ساعات اتصالك',
                     value: hours.toStringAsFixed(1)),
               ],
             ),
@@ -326,7 +359,7 @@ class _Tier extends StatelessWidget {
               Icon(
                 earned ? Icons.check_circle : Icons.radio_button_unchecked,
                 size: 18,
-                color: earned ? Colors.green.shade600 : theme.colorScheme.outline,
+                color: earned ? context.z.ok : theme.colorScheme.outline,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -337,7 +370,7 @@ class _Tier extends StatelessWidget {
                   style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: earned
-                          ? Colors.green.shade700
+                          ? context.z.ok
                           : theme.colorScheme.primary)),
             ],
           ),
@@ -349,14 +382,14 @@ class _Tier extends StatelessWidget {
               minHeight: 8,
               backgroundColor: theme.colorScheme.surfaceContainerHighest,
               valueColor: AlwaysStoppedAnimation(
-                  earned ? Colors.green.shade600 : theme.colorScheme.primary),
+                  earned ? context.z.ok : theme.colorScheme.primary),
             ),
           ),
           if (earned) ...[
             const SizedBox(height: 4),
             Text('صُرفت',
                 style: theme.textTheme.bodySmall
-                    ?.copyWith(color: Colors.green.shade700)),
+                    ?.copyWith(color: context.z.ok)),
           ],
         ],
       ),

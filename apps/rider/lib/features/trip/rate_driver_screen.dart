@@ -148,7 +148,7 @@ class _PaymentDue extends StatelessWidget {
                   'خُصم ${credit.round()} دينار من رصيدك — لا تدفعها نقداً.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall
-                      ?.copyWith(color: Colors.green.shade700),
+                      ?.copyWith(color: context.z.ok),
                 ),
               ],
 

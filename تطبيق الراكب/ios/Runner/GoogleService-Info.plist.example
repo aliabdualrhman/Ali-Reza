@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  قالب فقط — لا يُستخدم في البناء.
+  نزّل الملف الحقيقي من Firebase Console باسم GoogleService-Info.plist
+  وضعه بجانب هذا القالب في Runner/ (الملف الحقيقي مستثنى من git).
+
+  التطبيقات مسجّلة مسبقاً في Firebase — لا Add app.
+  نزّل من Project settings ← Your apps ← الترس بجانب التطبيق:
+    الراكب iOS: iq.zanbour.rider
+    السائق iOS: iq.zanbour.driver
+-->
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>REPLACE_ME</string>
+	<key>GCM_SENDER_ID</key>
+	<string>REPLACE_ME</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>iq.zanbour.rider</string>
+	<key>PROJECT_ID</key>
+	<string>REPLACE_ME</string>
+	<key>STORAGE_BUCKET</key>
+	<string>REPLACE_ME.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true/>
+	<key>IS_GCM_ENABLED</key>
+	<true/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:REPLACE:ios:REPLACE</string>
+</dict>
+</plist>

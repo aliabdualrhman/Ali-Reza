@@ -125,7 +125,9 @@ class AuthRepository {
     /// `redeem_referral_code` تعمل بـ`auth.uid()` وهي معدومة قبل تأكيد
     /// البريد، فيلتقطه مُشغّلٌ في القاعدة لحظة الإنشاء (0055).
     String? referralCode,
-    required String email,
+    /// فارغٌ أو مُهمَل حين يُطفئ المدير البريد (0139) — فيُنشأ الحساب
+    /// على الرقم وحده.
+    String? email,
     required String password,
     required String fullName,
     required String phoneE164,
@@ -136,14 +138,22 @@ class AuthRepository {
     required String vehicleColor,
     required String vehicleKind,
   }) async {
+    final mail = AuthFlags.emailEnabled &&
+            Validators.normalizeEmail(email).isNotEmpty
+        ? Validators.normalizeEmail(email)
+        : null;
+
     await _assertNoConflicts(
       fullName: fullName,
       phone: phoneE164,
-      email: Validators.normalizeEmail(email),
+      email: mail ?? '',
     );
 
+    // **بلا بريد يُسجَّل بالهاتف** — ومزوّد الهاتف بلا تأكيد (التوثيق
+    // بواتسابنا)، فتعود الجلسة فوراً.
     final res = await _sb.auth.signUp(
-      email: Validators.normalizeEmail(email),
+      email: mail,
+      phone: mail == null ? phoneE164 : null,
       password: password,
       data: {
         'role': 'driver',
@@ -178,7 +188,9 @@ class AuthRepository {
     // والإشارة الوحيدة `identities` فارغة. وهي موثّقة ومقصودة.
     if (res.user != null && (res.user!.identities?.isEmpty ?? false)) {
       throw AuthException(
-        'هذا البريد مسجّل مسبقاً. سجّل دخولك أو استعد كلمة المرور.',
+        mail == null
+            ? 'رقم الهاتف مسجّل مسبقاً. سجّل دخولك أو استعد كلمة المرور.'
+            : 'هذا البريد مسجّل مسبقاً. سجّل دخولك أو استعد كلمة المرور.',
       );
     }
 
@@ -196,7 +208,8 @@ class AuthRepository {
     // البريد مؤكَّد فعلاً — وفشلُه يعني أن التأكيد مطلوب حقاً.
     try {
       final signedIn = await _sb.auth.signInWithPassword(
-        email: Validators.normalizeEmail(email),
+        email: mail,
+        phone: mail == null ? phoneE164 : null,
         password: password,
       );
       if (signedIn.session != null) return SignUpOutcome.signedIn;
@@ -204,6 +217,10 @@ class AuthRepository {
       // البريد ما زال غير مؤكَّد — وهو الوضع `email` الطبيعي.
     }
 
+    if (mail == null) {
+      throw AuthException(
+          'أُنشئ حسابك — سجّل دخولك برقم هاتفك وكلمة المرور.');
+    }
     return SignUpOutcome.needsEmailConfirmation;
   }
 
@@ -216,11 +233,38 @@ class AuthRepository {
     required String password,
   }) async {
     final id = Validators.normalizeEmail(identifier);
-    final email = await _resolveLoginEmail(id);
-    final res = await _sb.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
+    final phone = Validators.normalizePhone(id);
+
+    // **الرقم يدخل برقمه (0139)، لا عبر البريد.** كان GoTrue لا يعرف
+    // الهاتف، فيُحلّ الرقم إلى بريدٍ ثم يُدخل به — فلا دخول لحسابٍ بلا
+    // بريد. صار `auth.users.phone` مضبوطاً لكلّ حساب، فيُدخل به مباشرةً.
+    AuthResponse res;
+    if (phone != null) {
+      try {
+        res = await _sb.auth.signInWithPassword(
+          phone: phone,
+          password: password,
+        );
+      } on AuthException catch (e) {
+        // **الطريق القديم احتياطاً، والبريد مفعّل فقط.** قاعدةٌ لم يصلها
+        // 0139 بعد لا تعرف الرقم في GoTrue — فيدخل صاحبه كما كان أمس.
+        // وإن فشل الطريقان فالخطأ خطأُ الرقم، لا خطأُ البريد الذي لم يكتبه.
+        if (!AuthFlags.emailEnabled) rethrow;
+        try {
+          res = await _sb.auth.signInWithPassword(
+            email: await _resolveLoginEmail(id),
+            password: password,
+          );
+        } catch (_) {
+          throw e;
+        }
+      }
+    } else {
+      if (!AuthFlags.emailEnabled) {
+        throw AuthException('اكتب رقم هاتفك — الدخول بالرقم وحده');
+      }
+      res = await _sb.auth.signInWithPassword(email: id, password: password);
+    }
     await assertRole(res.user?.id);
   }
 

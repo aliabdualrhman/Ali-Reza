@@ -263,8 +263,26 @@ class PushService {
 
     try {
       final settings = await FirebaseMessaging.instance.getNotificationSettings();
-      authorized =
-          settings.authorizationStatus == AuthorizationStatus.authorized;
+      // **مثل الراكب — وحاسم لمراجعة آبل.**
+      //
+      // `notDetermined` كان يُحسب «مرفوضاً» فيظهر شريطٌ أحمر
+      // («مهم — إعداداتٌ ناقصة») فور الدخول قبل أن يجيب المراجع على
+      // حوار الإذن — فيرفض آبل بـ 2.1 «خطأ بعد تسجيل الدخول».
+      //
+      // و`provisional` إذنٌ صامتٌ صالح على iOS؛ رفضه يجعل البطاقة
+      // الحمراء تظهر على كل جهازٍ وافق بصمت.
+      final status = settings.authorizationStatus;
+      if (status == AuthorizationStatus.authorized ||
+          status == AuthorizationStatus.provisional) {
+        authorized = true;
+      } else if (status == AuthorizationStatus.denied) {
+        authorized = false;
+      } else if (status == AuthorizationStatus.notDetermined) {
+        authorized = null; // لم يُسأل بعد — لا عطل
+      } else {
+        // ephemeral وغيرها على iOS — ليست رفضاً.
+        authorized = true;
+      }
     } catch (e) {
       error = 'تعذّر قراءة إذن الإشعارات: $e';
     }
@@ -479,10 +497,20 @@ class PushDiagnostics {
   /// نعتبره سليماً ما لم يثبت العكس — `null` تعني تعذّر الفحص لا وجود عطل.
   bool get batteryOk => batteryUnrestricted != false;
 
+  /// جاهزية كاملة لشاشة الفحص — صارمة: رمزٌ مسجَّل وإذنٌ صريح.
   bool get healthy =>
       signedIn &&
       permissionGranted == true &&
       tokenMatches &&
       batteryOk &&
       error == null;
+
+  /// هل نُظهر البطاقة الحمراء على الرئيسية؟
+  ///
+  /// **لا تُخلط مع [healthy].** الرئيسية كانت تعرض البطاقة عند
+  /// `!healthy` — فيظهر «عطل» لمجرّد أن الرمز لم يُسجَّل بعد ثانيتين
+  /// من الدخول، أو أن الإذن ما زال معلّقاً. البطاقة للرفض الصريح فقط:
+  /// إذنٌ مرفوض، أو تجميد بطارية (أندرويد).
+  bool get showHomeAlert =>
+      permissionGranted == false || batteryUnrestricted == false;
 }

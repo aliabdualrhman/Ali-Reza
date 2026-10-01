@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'theme.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// تنبيهُ أن الإشعارات لن تصل — بطاقةٌ عائمة لا شريطٌ يحجب.
@@ -241,12 +243,12 @@ class _SetupSheetState extends State<_SetupSheet> {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       color: done
-          ? Colors.green.withValues(alpha: 0.10)
+          ? context.z.ok.withValues(alpha: 0.10)
           : theme.colorScheme.surfaceContainerHighest,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
-          color: done ? Colors.green.shade600 : Colors.transparent,
+          color: done ? context.z.ok : Colors.transparent,
         ),
       ),
       child: ListTile(
@@ -254,7 +256,7 @@ class _SetupSheetState extends State<_SetupSheet> {
         leading: CircleAvatar(
           radius: 15,
           backgroundColor:
-              done ? Colors.green.shade600 : theme.colorScheme.primary,
+              done ? context.z.ok : theme.colorScheme.primary,
           child: done
               ? const Icon(Icons.check, size: 18, color: Colors.white)
               : Text('${i + 1}',

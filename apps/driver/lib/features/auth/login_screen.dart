@@ -99,22 +99,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                     TextFormField(
                       controller: _identifier,
-                      keyboardType: TextInputType.text,
+                      // **البريد معطّلاً من اللوحة (0139) ⇒ حقلُ رقمٍ وحده:**
+                      // لوحة أرقام، ونصٌّ لا يذكر البريد، ومدقّقٌ لا يقبله.
+                      keyboardType: AuthFlags.emailEnabled
+                          ? TextInputType.text
+                          : TextInputType.phone,
                       textInputAction: TextInputAction.next,
-                      autofillHints: const [
-                        AutofillHints.username,
-                        AutofillHints.email,
-                        AutofillHints.telephoneNumber,
-                      ],
+                      autofillHints: AuthFlags.emailEnabled
+                          ? const [
+                              AutofillHints.username,
+                              AutofillHints.email,
+                              AutofillHints.telephoneNumber,
+                            ]
+                          : const [AutofillHints.telephoneNumber],
                       // الرقم والبريد لاتينيان — نفرض الاتجاه حتى لا ينقلبا
                       // شكلهما داخل واجهة عربية.
                       textDirection: TextDirection.ltr,
-                      decoration: const InputDecoration(
-                        labelText: 'رقم الهاتف أو البريد',
-                        hintText: '07XXXXXXXXX أو البريد',
-                        prefixIcon: Icon(Icons.person_outline),
+                      decoration: InputDecoration(
+                        labelText: AuthFlags.emailEnabled
+                            ? 'رقم الهاتف أو البريد'
+                            : 'رقم الهاتف',
+                        hintText: AuthFlags.emailEnabled
+                            ? '07XXXXXXXXX أو البريد'
+                            : '07XXXXXXXXX',
+                        prefixIcon: Icon(AuthFlags.emailEnabled
+                            ? Icons.person_outline
+                            : Icons.phone_outlined),
                       ),
-                      validator: Validators.emailOrPhone,
+                      validator: Validators.loginIdentifier,
                     ),
                     const SizedBox(height: 16),
 

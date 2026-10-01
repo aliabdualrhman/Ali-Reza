@@ -73,7 +73,7 @@ class PaymentAgreement extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text('✓ $theirsLabel اختار هذا',
                             style: theme.textTheme.bodySmall?.copyWith(
-                                color: ZanbourTheme.success,
+                                color: context.z.ok,
                                 fontWeight: FontWeight.bold)),
                       ],
                     ],
@@ -101,12 +101,12 @@ class PaymentAgreement extends StatelessWidget {
         if (agreed != null)
           Row(
             children: [
-              const Icon(Icons.check_circle, color: ZanbourTheme.success),
+              Icon(Icons.check_circle, color: context.z.ok),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('اتفقتما — يمكن استلام الطلب',
                     style: TextStyle(
-                        color: ZanbourTheme.success,
+                        color: context.z.ok,
                         fontWeight: FontWeight.bold)),
               ),
             ],

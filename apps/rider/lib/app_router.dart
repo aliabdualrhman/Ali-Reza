@@ -156,9 +156,43 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/selfie', builder: (_, _) => const SelfieScreen()),
-      GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
-      GoRoute(path: '/map', builder: (_, _) => const MapScreen()),
-      GoRoute(path: '/my-trips', builder: (_, _) => const MyTripsScreen()),
+      // **الشاشات الرئيسية داخل إطار الشريط السفلي** (`ZTabShell`).
+      // المسارات كما هي بحروفها، فلا يتغيّر `go`/`push`/`redirect` في شيء.
+      // وما ليس هنا — الرحلة والعرض وخريطة الحجز — يُفتح فوق الشريط.
+      ShellRoute(
+        builder: (_, s, child) => ZTabShell(
+          location: s.uri.path,
+          tabs: const [
+            ZTab(path: '/home', icon: Icons.home_outlined,
+                selectedIcon: Icons.home, label: 'الرئيسية'),
+            ZTab(path: '/map', icon: Icons.two_wheeler_outlined,
+                selectedIcon: Icons.two_wheeler, label: 'اطلب', push: true),
+            ZTab(path: '/my-trips', icon: Icons.history,
+                selectedIcon: Icons.history, label: 'رحلاتي',
+                requiresAccount: true),
+            ZTab(path: '/account', icon: Icons.person_outline,
+                selectedIcon: Icons.person, label: 'حسابي',
+                requiresAccount: true),
+          ],
+          child: child,
+        ),
+        routes: [
+          GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
+          GoRoute(
+              path: '/my-trips', builder: (_, _) => const MyTripsScreen()),
+          GoRoute(path: '/account',
+              builder: (_, _) => const AccountScreen(driver: false)),
+        ],
+      ),
+      // `extra` اختياريّ: وجهةٌ من «إلى أين؟». وكلّ فتحٍ آخر بلا شيء.
+      GoRoute(
+        path: '/map',
+        builder: (_, s) => MapScreen(
+          preset: s.extra is ({double lat, double lng, String address})
+              ? s.extra as ({double lat, double lng, String address})
+              : null,
+        ),
+      ),
       GoRoute(
         path: '/verify-phone',
         // **`onDone` لا `pop`.** الشاشة تُفتح بـ`pushReplacement` فتصير
@@ -188,8 +222,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, s) =>
             DeliveryDetailScreen(tripId: s.pathParameters['id']!),
       ),
-      GoRoute(path: '/account',
-          builder: (_, _) => const AccountScreen(driver: false)),
       GoRoute(path: '/notifications',
           builder: (_, _) => const NotificationsScreen()),
       GoRoute(path: '/rate', builder: (_, _) => const RateDriverScreen()),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'errors.dart';
+import 'settings.dart';
 
 /// استعادة كلمة المرور — خطوتان: من أنت، ثم إلى أين نرسل.
 ///
@@ -58,14 +59,19 @@ class _FlowState extends ConsumerState<ForgotPasswordFlow> {
       final m = (v as Map).cast<String, dynamic>();
 
       if (m['found'] != true) {
-        setState(() => _error = 'لا يوجد حساب بهذا الرقم أو البريد');
+        setState(() => _error = AuthFlags.emailEnabled
+            ? 'لا يوجد حساب بهذا الرقم أو البريد'
+            : 'لا يوجد حساب بهذا الرقم');
         return;
       }
       if (m['phone_ok'] != true && m['email_ok'] != true) {
         // لا يقع بعد أن صار التوثيق شرطاً للدخول، ويبقى ممكناً لحسابات
         // أُنشئت قبل ذلك. ولا نتركه بلا رسالة.
-        setState(() => _error =
-            'لا توجد قناة موثَّقة في هذا الحساب. تواصل مع الإدارة.');
+        // **والبريد معطّلاً (0139) فالواتساب وحده** — ولا يُرسل إلا لرقمٍ
+        // موثَّق، وإلا سُلّم الحساب لمن يحمل الرقم اليوم.
+        setState(() => _error = AuthFlags.emailEnabled
+            ? 'لا توجد قناة موثَّقة في هذا الحساب. تواصل مع الإدارة.'
+            : 'رقم هذا الحساب غير موثَّق — لا يصله رمز. تواصل مع الإدارة.');
         return;
       }
       setState(() => _channels = m);
@@ -132,12 +138,18 @@ class _FlowState extends ConsumerState<ForgotPasswordFlow> {
           padding: const EdgeInsets.all(24),
           children: [
             if (c == null) ...[
-              Text('اكتب رقم هاتفك أو بريدك المسجَّل',
+              Text(
+                  AuthFlags.emailEnabled
+                      ? 'اكتب رقم هاتفك أو بريدك المسجَّل'
+                      : 'اكتب رقم هاتفك المسجَّل',
                   style: theme.textTheme.titleMedium),
               const SizedBox(height: 16),
               TextField(
                 controller: _id,
                 autofocus: true,
+                keyboardType: AuthFlags.emailEnabled
+                    ? TextInputType.text
+                    : TextInputType.phone,
                 textDirection: TextDirection.ltr,
                 decoration: const InputDecoration(
                   hintText: '07XXXXXXXXX',
@@ -174,20 +186,24 @@ class _FlowState extends ConsumerState<ForgotPasswordFlow> {
                 disabledNote: 'رقم هذا الحساب غير موثَّق',
                 onTap: _sendPhone,
               ),
-              const SizedBox(height: 12),
-              _ChannelTile(
-                icon: Icons.mail_outline,
-                title: 'البريد',
-                subtitle: '${c['email_masked'] ?? ''}',
-                enabled: c['email_ok'] == true && !_busy,
-                disabledNote: 'بريد هذا الحساب غير موثَّق',
-                onTap: _sendEmail,
-              ),
+              if (AuthFlags.emailEnabled) ...[
+                const SizedBox(height: 12),
+                _ChannelTile(
+                  icon: Icons.mail_outline,
+                  title: 'البريد',
+                  subtitle: '${c['email_masked'] ?? ''}',
+                  enabled: c['email_ok'] == true && !_busy,
+                  disabledNote: 'بريد هذا الحساب غير موثَّق',
+                  onTap: _sendEmail,
+                ),
+              ],
 
               const SizedBox(height: 20),
               TextButton(
                 onPressed: _busy ? null : () => setState(() => _channels = null),
-                child: const Text('تغيير الرقم أو البريد'),
+                child: Text(AuthFlags.emailEnabled
+                    ? 'تغيير الرقم أو البريد'
+                    : 'تغيير الرقم'),
               ),
             ],
 

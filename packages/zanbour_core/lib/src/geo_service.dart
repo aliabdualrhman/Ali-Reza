@@ -147,12 +147,30 @@ class GeoService {
       );
     }
 
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 20),
-      ),
-    );
+    // **الإذن ممنوح ولم تأتِ قراءة.** يحدث كثيراً على الآيفون: داخل بناءٍ
+    // أو في أول ثوانٍ بعد فتح التطبيق يرمي النظام
+    // `kCLErrorDomain error 0` («الموقع غير معروف بعد»)، وهو ليس رفضاً ولا
+    // انقطاع شبكة — فكان يصل الراكبَ «حدث خطأ غير متوقع» بشريطٍ أحمر،
+    // والخريطة تعمل والعنوان ظاهر. فنعود إلى آخر موقعٍ يعرفه النظام، وإلا
+    // قلنا له ما يفعله بدل أن نقول إن شيئاً انكسر.
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 20),
+        ),
+      );
+    } catch (_) {
+      Position? last;
+      try {
+        last = await Geolocator.getLastKnownPosition();
+      } catch (_) {}
+      if (last != null) return last;
+      throw const GeoException(
+        'تعذّر تحديد موقعك الآن. حرّك الخريطة إلى مكانك، '
+        'أو اضغط زرّ الموقع بعد قليل.',
+      );
+    }
   }
 
   /// آخر موقع يحتفظ به النظام — **لتركيز الخريطة لحظة فتحها**.

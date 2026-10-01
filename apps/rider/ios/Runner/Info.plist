@@ -67,11 +67,15 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>يُستعمل التصوير لالتقاط صورتك الحية وصور مستنداتك عند التسجيل.</string>
+	<string>يُستعمل التصوير لالتقاط صورتك الحية وصور مستنداتك. We need camera access to capture your profile photo and documents.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>يُستعمل الوصول إلى الصور لاختيار صورة حسابك أو صور مستنداتك من معرض هاتفك.</string>
+	<string>يُستعمل الوصول إلى الصور لاختيار صورة حسابك من معرض هاتفك. We need photo library access to let you choose a profile picture.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>نستعمل موقعك لتحديد نقطة انطلاقك، وإيجاد أقرب السائقين إليك، ومتابعة سائقك وهو في طريقه.</string>
+	<string>نستعمل موقعك لتحديد نقطة انطلاقك ومتابعة سائقك. We use your location to determine your pickup point and track your driver.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>نستعمل موقعك لتحديد نقطة انطلاقك ومتابعة الرحلة بانتظام. We use your location to determine your pickup point and reliably track your trip.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>نستعمل موقعك لتحديد نقطة انطلاقك ومتابعة الرحلة بانتظام. We use your location to determine your pickup point and reliably track your trip.</string>
 	<!-- **بلا هذا لا يعمل زرّ الدعم على iOS.** آبل تمنع التطبيق من
 	     السؤال «هل واتساب مثبَّت؟» إلا لما يُصرَّح به هنا، فتردّ
 	     `canLaunchUrl` بـ false دائماً — فيضغط المستخدم الزرّ ولا يقع

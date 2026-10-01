@@ -15,9 +15,6 @@
 **/key.properties
 *.jks
 *.keystore
-*.p8
-.codemagic-secrets/
-.drali-inbox/
 
 # IDE / OS
 .idea/
@@ -34,25 +31,63 @@ dist/
 apps/*/build/
 apps/*/.dart_tool/
 
-# Firebase service account keys
+# ⚠️ مفاتيح خدمة Firebase — أسرار حقيقية لا تُرفع أبداً.
+# من يحصل عليها يستطيع الإرسال باسم مشروعك والوصول لخدماته.
 *firebase-adminsdk*.json
 *service-account*.json
 serviceAccountKey.json
 .claude/launch.json
 
-# DB backups / release outputs
+# نسخ قاعدة البيانات — بيانات حقيقية لا تُرفع
 backups/
+
+# مخرجات الإصدار — ثنائيات ضخمة تُبنى من الكود
 release/
 
+# ذاكرة wrangler المؤقّتة — تُولَّد مع كل نشر ولا تخصّ المشروع
 .wrangler/
+
+# خريطة Graphify المعرفية — تُولَّد محلياً ولا تُرفع
 graphify-out/
+
+# مخرجات بايثون المؤقتة
 __pycache__/
 *.pyc
 
-# Optional large marketing images at repo root
-/*.png
-/*.jpg
+# ناتج بناء صفحة الشروحات — يُبنى بأمرٍ واحد ولا يُحفظ
+apps/guides/dist/
 
-# نسخ محلية بأسماء عربية — لا تُدفع إلى Git (تكسر توقيع iOS على Codemagic)
-/تطبيق الراكب/
-/تطبيق السائق/
+# نسخة سورس الناشر ومستودعها المستقل — مرجعٌ للتسليم لا جزءٌ من المشروع
+new source/
+
+# ——— الإصدار الأول: ما لا يُرفع إلى GitHub ———
+# أسرارٌ حقيقية: أرشيفٌ يحوي .env كاملاً.
+env.zip
+temp_b64.txt
+
+# وسائط ثقيلة (مئات الميغابايتات) — تُحفظ في النسخة الاحتياطية المحلية
+# لا في المستودع: الإعلانات والشروح وملفّات التسليم.
+المحتوى/
+تسليم-الناشر/
+شرح فيديو للمندوربين/
+zanbour_uploader_dist/
+*.pdf
+
+# ذاكرةُ أداة Supabase المحلّية — تُكتب عند كل نشرٍ من سطر الأوامر.
+# لا سرّ فيها، لكنها حالةُ جهازٍ لا شيفرة، وتتغيّر من جهازٍ لآخر.
+backend/supabase/.temp/
+
+# نسخ APK التجريبية — ناتج بناءٍ لا شيفرة، وكلٌّ منها أكثر من ٦٠ م.ب.
+# تُرسل لعلي مباشرةً ولا تُحفظ في المستودع.
+نسخة-التجربة/
+*.apk
+*.aab
+
+# أرشيف يتجاوز حد GitHub (100MB) — يبقى على الجهاز فقط
+apps.zip
+
+# مفاتيح Codemagic وآبل — أسرار حقيقية
+.codemagic-secrets/
+
+# لقطات المحادثة المحلية
+.drali-inbox/

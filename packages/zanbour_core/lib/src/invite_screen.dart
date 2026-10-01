@@ -22,6 +22,13 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
   String? _error;
   bool _busy = false;
 
+  /// كم يوماً بعد تسجيل الصديق يُقبل الرمز — `referral_code_grace_days`.
+  ///
+  /// **من الإعدادات لا من الشيفرة**، كبقيّة أرقام هذه الشاشة: لو كُتبت ٧
+  /// هنا ثم غيّرها المدير إلى ١٤، لقال التطبيق للناس شرطاً لا تطبّقه
+  /// القاعدة. والافتراضيّ ٧ هو افتراضيّ `can_redeem_referral` نفسه.
+  int _graceDays = 7;
+
   SupabaseClient get _sb => Supabase.instance.client;
 
   @override
@@ -43,6 +50,23 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+    await _loadGrace();
+  }
+
+  /// **خطأٌ هنا لا يُسقط الشاشة.** الرمز والمكافأة هما المهمّ؛ والمهلة
+  /// تبقى على افتراضيّها إن لم تُقرأ.
+  Future<void> _loadGrace() async {
+    try {
+      final g = await _sb
+          .from('public_settings')
+          .select('value')
+          .eq('key', 'referral_code_grace_days')
+          .maybeSingle();
+      final days = num.tryParse('${g?['value'] ?? ''}'.trim())?.toInt();
+      if (days != null && days > 0 && mounted) {
+        setState(() => _graceDays = days);
+      }
+    } catch (_) {}
   }
 
   /// **يُولَّد عند أول طلب لا عند التسجيل.** أكثر المستخدمين لن يدعوا
@@ -192,6 +216,21 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                             style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant),
                           ),
+                          const SizedBox(height: 12),
+                          // **الموعد تحت الرمز لا في «كيف تكسب».** الداعي
+                          // يقرأ ما حول الرمز وهو يرسله، ولا ينزل إلى الشرح.
+                          // ومن لم يُخبر صديقه أن للرمز موعداً، أخذ صديقه
+                          // أول رحلة ثم تذكّر — فضاعت الدعوة وظنّ الاثنان
+                          // أن التطبيق سرقها.
+                          _Deadline(
+                            text: widget.isDriver
+                                ? 'يجب أن يُدخله صديقك قبل أول رحلة يأخذها، '
+                                    'وخلال $_graceDays أيام من تسجيله — '
+                                    'بعدها لا يُقبل.'
+                                : 'يجب أن يُدخله صديقك قبل أول طلبٍ له، '
+                                    'وخلال $_graceDays أيام من تسجيله — '
+                                    'بعدها لا يُقبل.',
+                          ),
                           TextButton.icon(
                             onPressed: _busy ? null : _rotate,
                             icon: const Icon(Icons.refresh, size: 16),
@@ -217,7 +256,8 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                         _Step(1, 'أرسل رمزك إلى '
                             '${widget.isDriver ? 'سائق' : 'صديق'} لم يسجّل بعد.'),
                         _Step(2, 'يكتبه عند التسجيل، أو من صفحة حسابه '
-                            'قبل أول رحلة له.'),
+                            'قبل أول رحلة له وخلال $_graceDays أيام '
+                            'من تسجيله.'),
                         _Step(3, 'بعد $trips رحلات مكتملة له، '
                             'يصلك $reward دينار رصيد هدية.'),
                         const SizedBox(height: 14),
@@ -289,7 +329,11 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
   void _copy(String code, int reward, int trips) {
     // **رسالة جاهزة لا رمزٌ عارٍ.** من ينسخ رمزاً وحده يرسله بلا شرح،
     // فيسأل صديقه «ما هذا؟» وتموت الدعوة في السؤال.
+    // **والموعد في الرسالة نفسها.** الصديق هو من يُدخل الرمز، فهو من يجب
+    // أن يعرفه — لا الداعي وحده.
     final text = 'حمّل تطبيق زنبور واستعمل رمز الدعوة: $code\n'
+        'اكتبه عند التسجيل، أو من «حسابي» قبل أول رحلة لك '
+        'وخلال $_graceDays أيام من تسجيلك.\n'
         'zanbour.iq';
     Clipboard.setData(ClipboardData(text: text));
     _toast('نُسخت الدعوة — أرسلها لصديقك');
@@ -299,6 +343,40 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg)));
+  }
+}
+
+/// تنبيهٌ بالموعد — بلون التحذير لا بلون الشرح.
+///
+/// **لأنه شرطٌ يُفوِّت لا معلومةٌ تُعرف.** نصٌّ رماديّ صغير يُقرأ كحاشية
+/// ويُتجاوز؛ وهذا إن تُجوِّز ضاعت الدعوة.
+class _Deadline extends StatelessWidget {
+  const _Deadline({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final c = theme.colorScheme.tertiary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: c.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.schedule, size: 18, color: c),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
   }
 }
 

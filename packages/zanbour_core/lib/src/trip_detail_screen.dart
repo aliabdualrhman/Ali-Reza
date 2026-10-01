@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -208,7 +210,7 @@ class _TripDetailState extends ConsumerState<TripDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.check_circle,
-                    size: 18, color: Colors.green.shade600),
+                    size: 18, color: context.z.ok),
                 const SizedBox(width: 8),
                 Text('قيّمتَ هذه الرحلة',
                     style: theme.textTheme.bodyMedium?.copyWith(

@@ -227,13 +227,39 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const PendingApprovalScreen(),
       ),
       GoRoute(path: '/documents', builder: (_, _) => const DocumentsScreen()),
-      GoRoute(path: '/home', builder: (_, _) => const DriverHomeScreen()),
+      // **الشاشات الرئيسية داخل إطار الشريط السفلي** (`ZTabShell`).
+      // المسارات كما هي بحروفها، فلا يتغيّر `go`/`push`/`redirect` في شيء.
+      // وما ليس هنا — العرض والرحلة والتحصيل والتقييم — يُفتح فوق الشريط.
+      // و`/guest` خارجه: الضيف لا رصيد له ولا رحلات.
+      ShellRoute(
+        builder: (_, s, child) => ZTabShell(
+          location: s.uri.path,
+          tabs: const [
+            ZTab(path: '/home', icon: Icons.home_outlined,
+                selectedIcon: Icons.home, label: 'الرئيسية'),
+            ZTab(path: '/my-trips', icon: Icons.history,
+                selectedIcon: Icons.history, label: 'رحلاتي'),
+            ZTab(path: '/wallet', icon: Icons.account_balance_wallet_outlined,
+                selectedIcon: Icons.account_balance_wallet, label: 'الرصيد'),
+            ZTab(path: '/account', icon: Icons.person_outline,
+                selectedIcon: Icons.person, label: 'حسابي'),
+          ],
+          child: child,
+        ),
+        routes: [
+          GoRoute(
+              path: '/home', builder: (_, _) => const DriverHomeScreen()),
+          GoRoute(
+              path: '/my-trips', builder: (_, _) => const MyTripsScreen()),
+          GoRoute(path: '/wallet', builder: (_, _) => const WalletScreen()),
+          GoRoute(path: '/account',
+              builder: (_, _) => const AccountScreen(driver: true)),
+        ],
+      ),
       GoRoute(path: '/guest', builder: (_, _) => const GuestHomeScreen()),
-      GoRoute(path: '/wallet', builder: (_, _) => const WalletScreen()),
       GoRoute(
           path: '/incentives',
           builder: (_, _) => const IncentivesScreen()),
-      GoRoute(path: '/my-trips', builder: (_, _) => const MyTripsScreen()),
       GoRoute(
           path: '/store-dues', builder: (_, _) => const StoreDuesScreen()),
       GoRoute(
@@ -267,8 +293,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           },
         ),
       ),
-      GoRoute(path: '/account',
-          builder: (_, _) => const AccountScreen(driver: true)),
       GoRoute(path: '/my-ratings', builder: (_, _) => const MyRatingsScreen()),
       GoRoute(path: '/push-check', builder: (_, _) => const PushCheckScreen()),
       GoRoute(path: '/offer', builder: (_, _) => const OfferScreen()),
