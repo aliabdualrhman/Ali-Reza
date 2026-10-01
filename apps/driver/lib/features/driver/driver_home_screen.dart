@@ -382,7 +382,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               // التنبيه ملتصقاً بأعلى الشاشة يغطّي شريط التطبيق نفسه،
               // فيبدو عطلاً في الواجهة لا تنبيهاً مقصوداً — ويُتجاهَل
               // لأنه يشبه خطأً عابراً.
-              if (pushBroken)
+              if (pushBroken && push != null)
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 74,
                   left: 0,

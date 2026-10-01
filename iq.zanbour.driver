@@ -1,2 +1,39 @@
 powershell -ExecutionPolicy Bypass -File scripts\prepare-codemagic.ps1
 ```ps1:scripts\prepare-codemagic.ps1
+5. افتح المجلد `.codemagic-secrets` (فُتح عندك) والصق القيم في Codemagic
+
+### ج) في Codemagic — Environment variables
+**App settings** ← **Environment variables** ← مجموعة اسمها بالضبط: `zanbour`  
+أضف (كلها Secure):
+
+| المتغير | من الملف |
+|---|---|
+| `RIDER_ENV_B64` | جاهز عندك |
+| `DRIVER_ENV_B64` | جاهز عندك |
+| `GEOAPIFY_KEY` | جاهز عندك |
+| `RIDER_GSI_B64` | بعد نزول plist |
+| `DRIVER_GSI_B64` | بعد نزول plist |
+
+### د) ربط App Store Connect
+**Teams** ← **Integrations** ← Developer Portal  
+أضف مفتاح API بالاسم بالضبط: `zanbour_asc`  
+(Issuer ID + Key ID + ملف `.p8` من App Store Connect)
+
+وتأكد أن التطبيق موجود في App Store Connect:
+- الاسم: **زنبور**
+- Bundle ID: `iq.zanbour.rider`
+
+---
+
+## ثم جرّب TestFlight
+
+1. اختر workflow **iOS — زنبور (الراكب)**
+2. **Start new build**
+3. عند النجاح يُرفع تلقائياً إلى TestFlight
+4. ثبّته من تطبيق TestFlight على الآيفون
+
+---
+
+**الوضع الحالي:** الأيقونات وYAML والمتغيرات الثلاثة (`.env` + Geoapify) جاهزة. المتبقي: ملفات Firebase + Integration `zanbour_asc` + Push من GitHub Desktop ثم Start build.
+
+إذا نزّلت ملفات `GoogleService-Info.plist` ضعها في المسارين أعلاه وقل لي «تم» لأعيد تشغيل السكربت وأتحقق معك قبل الضغط على Start build.
