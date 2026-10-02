@@ -1,39 +1,23 @@
-powershell -ExecutionPolicy Bypass -File scripts\prepare-codemagic.ps1
-```ps1:scripts\prepare-codemagic.ps1
-5. افتح المجلد `.codemagic-secrets` (فُتح عندك) والصق القيم في Codemagic
+iq.zanbour.driver
+```driver:iq.zanbour.driver
 
-### ج) في Codemagic — Environment variables
-**App settings** ← **Environment variables** ← مجموعة اسمها بالضبط: `zanbour`  
-أضف (كلها Secure):
+هذا هو الاسم المضبوط في المشروع وفي Firebase، ويطابق أسلوب الراكب:
 
-| المتغير | من الملف |
-|---|---|
-| `RIDER_ENV_B64` | جاهز عندك |
-| `DRIVER_ENV_B64` | جاهز عندك |
-| `GEOAPIFY_KEY` | جاهز عندك |
-| `RIDER_GSI_B64` | بعد نزول plist |
-| `DRIVER_GSI_B64` | بعد نزول plist |
+| التطبيق | Bundle ID |
+|---------|-----------|
+| الراكب | `iq.zanbour.rider` |
+| السائق (الكابتن) | `iq.zanbour.driver` |
 
-### د) ربط App Store Connect
-**Teams** ← **Integrations** ← Developer Portal  
-أضف مفتاح API بالاسم بالضبط: `zanbour_asc`  
-(Issuer ID + Key ID + ملف `.p8` من App Store Connect)
+### في Apple Developer
+1. **Certificates, Identifiers & Profiles** → **Identifiers** → **+**
+2. اختر **App IDs** → **App**
+3. **Description:** مثلاً `Zanbour Driver` أو `كابتن زنبور`
+4. **Bundle ID:** Explicit → `iq.zanbour.driver`
+5. فعّل على الأقل: **Push Notifications** (مهم لـ FCM/APNs)
 
-وتأكد أن التطبيق موجود في App Store Connect:
-- الاسم: **زنبور**
-- Bundle ID: `iq.zanbour.rider`
+### ملاحظات سريعة عن APNs عندك
+- **Key ID:** `HYAXR2K9KQ`
+- **Team ID:** `VHLSHY892L`
+- هذه القيم تُرفع في Firebase → مشروع `iq.zanbour.driver` → Cloud Messaging (Development و Production) — وهذا صحيح.
 
----
-
-## ثم جرّب TestFlight
-
-1. اختر workflow **iOS — زنبور (الراكب)**
-2. **Start new build**
-3. عند النجاح يُرفع تلقائياً إلى TestFlight
-4. ثبّته من تطبيق TestFlight على الآيفون
-
----
-
-**الوضع الحالي:** الأيقونات وYAML والمتغيرات الثلاثة (`.env` + Geoapify) جاهزة. المتبقي: ملفات Firebase + Integration `zanbour_asc` + Push من GitHub Desktop ثم Start build.
-
-إذا نزّلت ملفات `GoogleService-Info.plist` ضعها في المسارين أعلاه وقل لي «تم» لأعيد تشغيل السكربت وأتحقق معك قبل الضغط على Start build.
+بعد إنشاء Bundle ID في Apple، أنشئ التطبيق في App Store Connect بنفس المعرّف `iq.zanbour.driver`.
